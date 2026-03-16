@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build dist
+        run: npm run build
+
+      - name: Verify dist/index.js was produced
+        run: |
+          if [ ! -f dist/index.js ]; then
+            echo "::error::dist/index.js not found after build"
+            exit 1
+          fi
+          echo "dist/index.js size: $(du -sh dist/index.js | cut -f1)"
+
+      # Ensure the dist is committed and up-to-date when on main
+      - name: Check dist is committed
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if ! git diff --quiet dist/; then
+            echo "::warning::dist/ is out of date. Run 'npm run build' and commit the result."
+          fi

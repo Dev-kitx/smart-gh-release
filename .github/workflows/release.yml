@@ -1,0 +1,80 @@
+name: Release
+
+# Trigger: push a tag like v1.2.3 or v2.0.0-beta.1
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write       # create releases & upload assets
+  discussions: write    # create GitHub Discussions (optional)
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed for tag comparison
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # ── Build your project here ────────────────────────────────────────────
+      # - name: Build
+      #   run: npm ci && npm run build
+
+      # ── Create the release ─────────────────────────────────────────────────
+      - name: Smart GitHub Release
+        id: release
+        uses: ./   # points to this action
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+          # ── Tag is taken from the pushed ref; no auto_version needed here ──
+          # tag: ${{ github.ref_name }}   # uncomment to be explicit
+
+          # ── Changelog ──────────────────────────────────────────────────────
+          exclude_types: 'chore,ci,style,test'
+
+          # ── Assets (adjust globs to your build output) ──────────────────
+          # files: |
+          #   dist/*.zip
+          #   dist/*.tar.gz
+
+          generate_checksums: true
+
+          # ── Contributors section ────────────────────────────────────────
+          include_contributors: true
+
+          # ── GitHub Discussions ──────────────────────────────────────────
+          create_discussion: false
+          # discussion_category: Announcements
+
+      # ── Consume outputs in later steps ─────────────────────────────────────
+      - name: Print release URL
+        run: echo "Released at ${{ steps.release.outputs.release_url }}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Alternative: fully automatic versioning from conventional commits
+# ─────────────────────────────────────────────────────────────────────────────
+# on:
+#   push:
+#     branches: [main]
+#
+# jobs:
+#   release:
+#     steps:
+#       - uses: actions/checkout@v4
+#         with: { fetch-depth: 0 }
+#       - uses: ./
+#         with:
+#           auto_version: true
+#           generate_checksums: true
+#           include_contributors: true
+#           create_discussion: true
