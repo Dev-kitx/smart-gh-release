@@ -134,6 +134,23 @@ inputs:
     required: false
     default: 'false'
 
+  auto_release:
+    description: >
+      Controls when the GitHub Release is created.
+
+      true (default): Create the release immediately on every push, then open a
+      pull request from the `smart-changelog` branch to update CHANGELOG.md.
+      Merge that PR at your convenience — it does not gate the release.
+
+      false: Open (or update) a pull request from the `smart-release` branch
+      with an updated CHANGELOG.md. The GitHub Release is created only when
+      that PR is merged, giving you a human review gate before publishing.
+      Commits accumulate across multiple pushes into the same open PR.
+
+      Requires `pull-requests: write` permission in your workflow.
+    required: false
+    default: 'true'
+
   # ── GitHub Discussions ─────────────────────────────────────────────────────
   create_discussion:
     description: >
@@ -164,6 +181,11 @@ outputs:
     description: 'The full generated changelog in Markdown.'
   bump_level:
     description: 'Detected version bump: major | minor | patch.'
+  pr_url:
+    description: >
+      HTML URL of the opened or updated pull request.
+      Set when auto_release: true (smart-changelog PR) or
+      auto_release: false on a non-merge push (smart-release PR).
 
 runs:
   using: 'node24'
