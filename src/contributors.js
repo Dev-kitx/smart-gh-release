@@ -85,8 +85,6 @@ export async function getContributors(octokit, repo, base, head) {
     const markdown = [
       '### 🙏 Contributors',
       '',
-      'Thank you to all the wonderful people who contributed to this release!',
-      '',
       ...items,
     ].join('\n');
 
