@@ -141,6 +141,7 @@ With `auto_version: true` you never write a tag or bump a version number manuall
 | Input | Required | Default | Description |
 |---|---|---|---|
 | `update_existing` | No | `false` | Update an existing release for the tag instead of failing. |
+| `auto_release` | No | `true` | Controls when the GitHub Release is created. See [Auto Release Mode](#auto-release-mode). |
 
 ### GitHub Discussions
 
@@ -163,6 +164,7 @@ With `auto_version: true` you never write a tag or bump a version number manuall
 | `assets_uploaded` | Number of assets successfully uploaded. |
 | `changelog` | The full generated changelog in Markdown. |
 | `bump_level` | Detected version bump: `major`, `minor`, or `patch`. |
+| `pr_url` | URL of the opened or updated pull request (`smart-changelog` or `smart-release`). |
 
 ### Using Outputs
 
@@ -425,6 +427,74 @@ jobs:
           echo "URL:   ${{ steps.release.outputs.release_url }}"
           echo "Files: ${{ steps.release.outputs.assets_uploaded }}"
 ```
+
+---
+
+## Auto Release Mode
+
+The `auto_release` input gives you two distinct release strategies.
+
+---
+
+### `auto_release: true` (default) — release immediately
+
+Behaves exactly like the classic mode: a GitHub Release is created on every push. In addition, the action opens a pull request from the `smart-changelog` branch to update `CHANGELOG.md` in your repository.
+
+```
+push to main
+  └─► create GitHub Release immediately
+  └─► open / update PR: smart-changelog → main  (updates CHANGELOG.md)
+```
+
+Merge the `smart-changelog` PR whenever you are ready. It does **not** gate the release — the release is already live.
+
+```yaml
+permissions:
+  contents: write
+  pull-requests: write   # required to open the CHANGELOG.md PR
+
+- uses: your-org/smart-gh-release@v1
+  with:
+    token: ${{ secrets.GITHUB_TOKEN }}
+    auto_version: true
+    auto_release: true   # default — can be omitted
+```
+
+---
+
+### `auto_release: false` — PR-gated release
+
+No release is created on push. Instead, the action opens (or updates) a pull request from the `smart-release` branch containing the updated `CHANGELOG.md`. **Merging that PR triggers the GitHub Release.**
+
+```
+push to main  (any number of times)
+  └─► open / update PR: smart-release → main  (accumulates CHANGELOG.md)
+
+merge smart-release PR
+  └─► create GitHub Release
+```
+
+Commits accumulate across multiple pushes into the same open PR — identical to how `release-please` works.
+
+```yaml
+permissions:
+  contents: write
+  pull-requests: write   # required
+
+- uses: your-org/smart-gh-release@v1
+  with:
+    token: ${{ secrets.GITHUB_TOKEN }}
+    auto_version: true
+    auto_release: false
+```
+
+---
+
+### Branch protection rules
+
+If your default branch has **required reviews or status checks**, the `smart-changelog` / `smart-release` PR cannot be merged automatically and will require a manual merge. The action will still open the PR and log a clear message — the release workflow itself will not fail.
+
+> **Tip:** Granting the `GITHUB_TOKEN` the `bypass branch protections` permission (repository → Settings → Branches) allows the action to merge without a review, but this is optional.
 
 ---
 
