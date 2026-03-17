@@ -6828,7 +6828,7 @@ const util = __nccwpck_require__(6134)
 const { InvalidArgumentError } = errors
 const api = __nccwpck_require__(2029)
 const buildConnector = __nccwpck_require__(9846)
-const MockClient = __nccwpck_require__(9819)
+const MockClient = __nccwpck_require__(2200)
 const MockAgent = __nccwpck_require__(8391)
 const MockPool = __nccwpck_require__(5426)
 const mockErrors = __nccwpck_require__(8295)
@@ -16878,7 +16878,7 @@ const {
   kOptions,
   kFactory
 } = __nccwpck_require__(3375)
-const MockClient = __nccwpck_require__(9819)
+const MockClient = __nccwpck_require__(2200)
 const MockPool = __nccwpck_require__(5426)
 const { matchValue, buildMockOptions } = __nccwpck_require__(115)
 const { InvalidArgumentError, UndiciError } = __nccwpck_require__(5381)
@@ -17027,7 +17027,7 @@ module.exports = MockAgent
 
 /***/ }),
 
-/***/ 9819:
+/***/ 2200:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 
@@ -68628,8 +68628,6 @@ async function getContributors(octokit, repo, base, head) {
     const markdown = [
       '### 🙏 Contributors',
       '',
-      'Thank you to all the wonderful people who contributed to this release!',
-      '',
       ...items,
     ].join('\n');
 
@@ -68784,6 +68782,295 @@ async function writeJobSummary({
     .write();
 }
 
+;// CONCATENATED MODULE: ./src/changelog-file.js
+ // eslint-disable-line no-unused-vars
+
+const CHANGELOG_PATH   = 'CHANGELOG.md';
+const CHANGELOG_HEADER = '# Changelog\n\nAll notable changes to this project will be documented in this file.\n';
+
+class ChangelogFile {
+  /**
+   * @param {import('@octokit/core').Octokit} octokit
+   * @param {{ owner: string, repo: string }} repo
+   */
+  constructor(octokit, repo) {
+    this.octokit = octokit;
+    this.repo    = repo;
+  }
+
+  /**
+   * Read CHANGELOG.md from a git ref (branch name or SHA).
+   * Returns { content, sha } where both are null when the file does not exist.
+   *
+   * @param {string} ref
+   * @returns {Promise<{ content: string|null, sha: string|null }>}
+   */
+  async read(ref) {
+    try {
+      const { data } = await this.octokit.rest.repos.getContent({
+        owner: this.repo.owner,
+        repo:  this.repo.repo,
+        path:  CHANGELOG_PATH,
+        ref,
+      });
+      return {
+        content: Buffer.from(data.content, 'base64').toString('utf8'),
+        sha:     data.sha,
+      };
+    } catch (err) {
+      if (err.status === 404) return { content: null, sha: null };
+      throw err;
+    }
+  }
+
+  /**
+   * Build a single version entry block for CHANGELOG.md.
+   *
+   * @param {string} tag         e.g. "v1.2.3"
+   * @param {string} changelogMd Markdown from ChangelogGenerator
+   * @returns {string}
+   */
+  buildEntry(tag, changelogMd) {
+    const date = new Date().toISOString().split('T')[0];
+    const body = changelogMd?.trim() || '_No notable changes._';
+    return `## [${tag}] - ${date}\n\n${body}`;
+  }
+
+  /**
+   * Prepend a new version entry to existing CHANGELOG.md content.
+   * Inserts before the first `## ` section so the header is preserved.
+   *
+   * @param {string|null} existingContent
+   * @param {string}      newEntry
+   * @returns {string}
+   */
+  prepend(existingContent, newEntry) {
+    if (!existingContent) {
+      return `${CHANGELOG_HEADER}\n${newEntry}\n`;
+    }
+
+    const idx = existingContent.indexOf('\n## ');
+    if (idx !== -1) {
+      return (
+        existingContent.slice(0, idx) +
+        '\n\n' +
+        newEntry +
+        '\n' +
+        existingContent.slice(idx)
+      );
+    }
+
+    return existingContent.trimEnd() + '\n\n' + newEntry + '\n';
+  }
+
+  /**
+   * Write (create or overwrite) CHANGELOG.md on a branch via the GitHub API.
+   *
+   * @param {string}      branch
+   * @param {string}      content
+   * @param {string|null} existingSha  Blob SHA required by GitHub when the file already exists
+   * @param {string}      [commitMsg]
+   */
+  async write(branch, content, existingSha, commitMsg = 'chore: update CHANGELOG.md') {
+    await this.octokit.rest.repos.createOrUpdateFileContents({
+      owner:   this.repo.owner,
+      repo:    this.repo.repo,
+      path:    CHANGELOG_PATH,
+      message: commitMsg,
+      content: Buffer.from(content).toString('base64'),
+      ...(existingSha && { sha: existingSha }),
+      branch,
+    });
+  }
+}
+
+;// CONCATENATED MODULE: ./src/pr-manager.js
+
+
+const RELEASE_LABEL = {
+  name:        'smart-release: pending',
+  color:       '0075ca',
+  description: 'Merging this PR will trigger a GitHub Release',
+};
+
+class PrManager {
+  /**
+   * @param {import('@octokit/core').Octokit} octokit
+   * @param {{ owner: string, repo: string }} repo
+   */
+  constructor(octokit, repo) {
+    this.octokit = octokit;
+    this.repo    = repo;
+  }
+
+  /**
+   * Return the repository's default branch name.
+   * @returns {Promise<string>}
+   */
+  async getDefaultBranch() {
+    const { data } = await this.octokit.rest.repos.get({
+      owner: this.repo.owner,
+      repo:  this.repo.repo,
+    });
+    return data.default_branch;
+  }
+
+  /**
+   * Return true if `sha` is the merge commit SHA of a recently closed PR
+   * from `branchName`. Covers standard and squash merges.
+   *
+   * @param {string} branchName
+   * @param {string} sha  github.context.sha of the current push
+   * @returns {Promise<boolean>}
+   */
+  async isMergedPR(branchName, sha) {
+    try {
+      const { data: prs } = await this.octokit.rest.pulls.list({
+        owner:     this.repo.owner,
+        repo:      this.repo.repo,
+        state:     'closed',
+        head:      `${this.repo.owner}:${branchName}`,
+        per_page:  5,
+        sort:      'updated',
+        direction: 'desc',
+      });
+      return prs.some((pr) => pr.merged_at && pr.merge_commit_sha === sha);
+    } catch (err) {
+      core.warning(`PR detection failed: ${err.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Reset an existing branch to `sha`, or create it pointing to `sha`
+   * if it does not exist yet. After this call the branch tip === sha.
+   *
+   * @param {string} branchName
+   * @param {string} sha
+   */
+  async resetOrCreateBranch(branchName, sha) {
+    try {
+      await this.octokit.rest.git.updateRef({
+        owner: this.repo.owner,
+        repo:  this.repo.repo,
+        ref:   `heads/${branchName}`,
+        sha,
+        force: true,
+      });
+      core.debug(`Reset branch ${branchName} to ${sha}`);
+    } catch (err) {
+      if (err.status !== 404 && err.status !== 422) throw err;
+      // Branch does not exist yet — create it
+      await this.octokit.rest.git.createRef({
+        owner: this.repo.owner,
+        repo:  this.repo.repo,
+        ref:   `refs/heads/${branchName}`,
+        sha,
+      });
+      core.debug(`Created branch ${branchName} at ${sha}`);
+    }
+  }
+
+  /**
+   * Return the first open PR from `branchName`, or null.
+   *
+   * @param {string} branchName
+   * @returns {Promise<object|null>}
+   */
+  async findOpenPR(branchName) {
+    const { data: prs } = await this.octokit.rest.pulls.list({
+      owner:    this.repo.owner,
+      repo:     this.repo.repo,
+      state:    'open',
+      head:     `${this.repo.owner}:${branchName}`,
+      per_page: 1,
+    });
+    return prs[0] ?? null;
+  }
+
+  /**
+   * Open a new PR from branchName → defaultBranch, or update the title/body
+   * of an existing open PR. Returns the PR object.
+   *
+   * When `addReleaseLabel` is true the `smart-release: pending` label is added
+   * to the PR (created in the repo first if it does not exist yet).
+   *
+   * @param {string}  branchName
+   * @param {string}  defaultBranch
+   * @param {string}  title
+   * @param {string}  body
+   * @param {boolean} [addReleaseLabel=false]
+   * @returns {Promise<object>}
+   */
+  async openOrUpdatePR(branchName, defaultBranch, title, body, addReleaseLabel = false) {
+    const existing = await this.findOpenPR(branchName);
+
+    if (existing) {
+      const { data } = await this.octokit.rest.pulls.update({
+        owner:       this.repo.owner,
+        repo:        this.repo.repo,
+        pull_number: existing.number,
+        title,
+        body,
+      });
+      core.info(`Updated PR #${data.number}: ${data.html_url}`);
+      return data;
+    }
+
+    const { data } = await this.octokit.rest.pulls.create({
+      owner: this.repo.owner,
+      repo:  this.repo.repo,
+      title,
+      head:  branchName,
+      base:  defaultBranch,
+      body,
+    });
+    core.info(`Opened PR #${data.number}: ${data.html_url}`);
+
+    if (addReleaseLabel) {
+      await this.applyReleaseLabel(data.number);
+    }
+
+    return data;
+  }
+
+  /**
+   * Ensure the `smart-release: pending` label exists in the repo, then apply
+   * it to the given PR number.
+   *
+   * @param {number} prNumber
+   */
+  async applyReleaseLabel(prNumber) {
+    try {
+      // Create label if it does not already exist
+      try {
+        await this.octokit.rest.issues.createLabel({
+          owner:       this.repo.owner,
+          repo:        this.repo.repo,
+          name:        RELEASE_LABEL.name,
+          color:       RELEASE_LABEL.color,
+          description: RELEASE_LABEL.description,
+        });
+      } catch (err) {
+        // 422 = label already exists — safe to ignore
+        if (err.status !== 422) throw err;
+      }
+
+      await this.octokit.rest.issues.addLabels({
+        owner:       this.repo.owner,
+        repo:        this.repo.repo,
+        issue_number: prNumber,
+        labels:      [RELEASE_LABEL.name],
+      });
+
+      core.info(`Applied label "${RELEASE_LABEL.name}" to PR #${prNumber}`);
+    } catch (err) {
+      // Label is cosmetic — warn but never fail the release flow
+      core.warning(`Could not apply release label: ${err.message}`);
+    }
+  }
+}
+
 ;// CONCATENATED MODULE: ./src/index.js
 
 
@@ -68796,44 +69083,79 @@ async function writeJobSummary({
 
 
 
+
+
+// Branch names used for changelog PRs
+const RELEASE_BRANCH   = 'smart-release';
+const CHANGELOG_BRANCH = 'smart-changelog';
+
 async function run() {
   try {
     // ── Auth & context ───────────────────────────────────────────────────────
-    const token = core.getInput('token', { required: true });
+    const token   = core.getInput('token', { required: true });
     const octokit = github.getOctokit(token);
     const { repo, sha } = github.context;
 
     // ── Read inputs ──────────────────────────────────────────────────────────
     const inputs = {
       // Versioning
-      tag:                core.getInput('tag'),
-      versionPrefix:      core.getInput('version_prefix') || 'v',
-      autoVersion:        core.getBooleanInput('auto_version'),
-      initialVersion:     core.getInput('initial_version') || '0.1.0',
+      tag:               core.getInput('tag'),
+      versionPrefix:     core.getInput('version_prefix') || 'v',
+      autoVersion:       core.getBooleanInput('auto_version'),
+      initialVersion:    core.getInput('initial_version') || '0.1.0',
       // Metadata
-      name:               core.getInput('name'),
-      body:               core.getInput('body'),
-      draft:              core.getBooleanInput('draft'),
-      prerelease:         core.getBooleanInput('prerelease'),
-      prereleaseChannel:  core.getInput('prerelease_channel'),
-      targetCommitish:    core.getInput('target_commitish') || sha,
+      name:              core.getInput('name'),
+      body:              core.getInput('body'),
+      draft:             core.getBooleanInput('draft'),
+      prerelease:        core.getBooleanInput('prerelease'),
+      prereleaseChannel: core.getInput('prerelease_channel'),
+      targetCommitish:   core.getInput('target_commitish') || sha,
       // Changelog
-      changelogSections:  core.getInput('changelog_sections'),
-      excludeTypes:       core.getInput('exclude_types').split(',').map((s) => s.trim()).filter(Boolean),
+      changelogSections: core.getInput('changelog_sections'),
+      excludeTypes:      core.getInput('exclude_types').split(',').map((s) => s.trim()).filter(Boolean),
       // Contributors
       includeContributors: core.getBooleanInput('include_contributors'),
       // Assets
-      files:                   core.getInput('files'),
-      generateChecksums:       core.getBooleanInput('generate_checksums'),
-      checksumFile:            core.getInput('checksum_file') || 'checksums.txt',
-      failOnUnmatchedFiles:    core.getBooleanInput('fail_on_unmatched_files'),
-      requiredAssets:          core.getInput('required_assets'),
+      files:                core.getInput('files'),
+      generateChecksums:    core.getBooleanInput('generate_checksums'),
+      checksumFile:         core.getInput('checksum_file') || 'checksums.txt',
+      failOnUnmatchedFiles: core.getBooleanInput('fail_on_unmatched_files'),
+      requiredAssets:       core.getInput('required_assets'),
       // Behaviour
-      updateExisting:     core.getBooleanInput('update_existing'),
+      updateExisting: core.getBooleanInput('update_existing'),
+      autoRelease:    core.getBooleanInput('auto_release'),
       // Discussions
       createDiscussion:   core.getBooleanInput('create_discussion'),
       discussionCategory: core.getInput('discussion_category') || 'Announcements',
     };
+
+    const prManager     = new PrManager(octokit, repo);
+    const defaultBranch = await prManager.getDefaultBranch();
+
+    // ── Route: auto_release: false ───────────────────────────────────────────
+    if (!inputs.autoRelease) {
+      const isReleaseMerge = await prManager.isMergedPR(RELEASE_BRANCH, sha);
+
+      if (!isReleaseMerge) {
+        // Regular push → update CHANGELOG.md and open/update the Release PR
+        core.info(`auto_release: false — updating ${RELEASE_BRANCH} PR`);
+        await runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBranch });
+        return;
+      }
+
+      core.info(`${RELEASE_BRANCH} PR merged — creating GitHub Release`);
+      // Fall through to the shared release flow below
+    } else {
+      // auto_release: true — skip if this push merged the smart-changelog PR
+      // (prevents an infinite loop: changelog PR merge → new release → new changelog PR → …)
+      const isChangelogMerge = await prManager.isMergedPR(CHANGELOG_BRANCH, sha);
+      if (isChangelogMerge) {
+        core.info(`${CHANGELOG_BRANCH} PR merged — no release needed`);
+        return;
+      }
+    }
+
+    // ── Shared release flow ──────────────────────────────────────────────────
 
     // ── 1. Resolve version / tag ─────────────────────────────────────────────
     const versionManager = new VersionManager(octokit, repo, inputs);
@@ -68852,12 +69174,12 @@ async function run() {
 
     // ── 3. Gather contributors ───────────────────────────────────────────────
     let contributorsSection = '';
-    let contributorCount = 0;
+    let contributorCount    = 0;
 
     if (inputs.includeContributors) {
       const contrib = await getContributors(octokit, repo, previousTag, inputs.targetCommitish);
       contributorsSection = contrib.markdown;
-      contributorCount = contrib.count;
+      contributorCount    = contrib.count;
       if (contributorCount > 0) core.info(`Contributors: ${contributorCount}`);
     }
 
@@ -68871,9 +69193,9 @@ async function run() {
       repo,
     });
 
-    // ── 5. Resolve & validate assets ────────────────────────────────────────
+    // ── 5. Resolve & validate assets ─────────────────────────────────────────
     const assetManager = new AssetManager(inputs);
-    const assetFiles = await assetManager.resolveFiles();
+    const assetFiles   = await assetManager.resolveFiles();
 
     if (assetFiles.length > 0) {
       core.info(`Assets to upload: ${assetFiles.length} file(s)`);
@@ -68884,20 +69206,20 @@ async function run() {
       core.info('Required assets validation passed.');
     }
 
-    // ── 6. Create or update the release ─────────────────────────────────────
-    const releaseManager = new ReleaseManager(octokit, repo, inputs);
+    // ── 6. Create or update the release ──────────────────────────────────────
+    const releaseManager   = new ReleaseManager(octokit, repo, inputs);
     const { data: release } = await releaseManager.createOrUpdate({
       tag,
-      name: inputs.name || tag,
-      body: releaseBody,
-      draft: inputs.draft,
-      prerelease: inputs.prerelease || Boolean(inputs.prereleaseChannel),
+      name:            inputs.name || tag,
+      body:            releaseBody,
+      draft:           inputs.draft,
+      prerelease:      inputs.prerelease || Boolean(inputs.prereleaseChannel),
       targetCommitish: inputs.targetCommitish,
     });
 
     core.info(`Release URL: ${release.html_url}`);
 
-    // ── 7. Upload assets ────────────────────────────────────────────────────
+    // ── 7. Upload assets ──────────────────────────────────────────────────────
     let uploadedCount = 0;
 
     if (assetFiles.length > 0) {
@@ -68911,12 +69233,12 @@ async function run() {
       core.info(`Uploaded ${uploadedCount} asset(s).`);
     }
 
-    // ── 8. Create GitHub Discussion (optional) ───────────────────────────────
+    // ── 8. Create GitHub Discussion (optional) ────────────────────────────────
     if (inputs.createDiscussion) {
       await createReleaseDiscussion(octokit, repo, release, inputs.discussionCategory);
     }
 
-    // ── 9. Set outputs ───────────────────────────────────────────────────────
+    // ── 9. Set outputs ────────────────────────────────────────────────────────
     core.setOutput('release_id',      String(release.id));
     core.setOutput('release_url',     release.html_url);
     core.setOutput('upload_url',      release.upload_url);
@@ -68926,7 +69248,7 @@ async function run() {
     core.setOutput('changelog',       changelogMd);
     core.setOutput('bump_level',      bumpLevel);
 
-    // ── 10. Write Job Summary ────────────────────────────────────────────────
+    // ── 10. Write Job Summary ─────────────────────────────────────────────────
     await writeJobSummary({
       release,
       version,
@@ -68936,11 +69258,141 @@ async function run() {
       contributorCount,
       previousTag,
     });
+
+    // ── 11. Open smart-changelog PR (auto_release: true only) ─────────────────
+    // When auto_release: false, CHANGELOG.md is already in main via the smart-release PR.
+    if (inputs.autoRelease) {
+      await openChangelogPR({ octokit, repo, tag, changelogMd, sha, prManager, defaultBranch });
+    }
   } catch (err) {
     core.setFailed(err.message);
     if (core.isDebug()) core.debug(err.stack);
   }
 }
+
+// ── auto_release: false — regular push path ──────────────────────────────────
+/**
+ * Compute next version, update CHANGELOG.md on the smart-release branch,
+ * and open or update the Release PR. No GitHub Release is created here.
+ */
+async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBranch }) {
+  // Resolve next version (tag computed but NOT created yet)
+  const versionManager = new VersionManager(octokit, repo, inputs);
+  const { tag, previousTag } = await versionManager.resolve();
+  core.info(`Pending release: ${tag}  |  previous: ${previousTag ?? '(none)'}`);
+
+  // Generate changelog
+  const changelogGen = new ChangelogGenerator(octokit, repo, inputs);
+  const { markdown: changelogMd, totalCommits } = await changelogGen.generate(
+    previousTag,
+    inputs.targetCommitish,
+  );
+
+  if (totalCommits === 0) {
+    core.info('No commits since last tag — skipping Release PR update.');
+    return;
+  }
+
+  // Build updated CHANGELOG.md from main's current content + new entry
+  const changelogFile = new ChangelogFile(octokit, repo);
+  const { content: baseContent, sha: fileSha } = await changelogFile.read(defaultBranch);
+  const entry      = changelogFile.buildEntry(tag, changelogMd);
+  const newContent = changelogFile.prepend(baseContent, entry);
+
+  // Reset smart-release branch to current main HEAD (keeps PR cleanly mergeable),
+  // then commit the updated CHANGELOG.md on top of it.
+  await prManager.resetOrCreateBranch(RELEASE_BRANCH, sha);
+  await changelogFile.write(
+    RELEASE_BRANCH,
+    newContent,
+    fileSha,
+    `chore(release): update CHANGELOG.md for ${tag}`,
+  );
+
+  // Open or update the Release PR (label applied only on creation)
+  const pr = await prManager.openOrUpdatePR(
+    RELEASE_BRANCH,
+    defaultBranch,
+    `🚀 Release ${tag}`,
+    buildReleasePRBody(tag, changelogMd),
+    true,   // addReleaseLabel
+  );
+
+  core.setOutput('pr_url',   pr.html_url);
+  core.setOutput('tag_name', tag);
+}
+
+// ── auto_release: true — open smart-changelog PR after release ───────────────
+/**
+ * After a release is published, open or update the smart-changelog PR so that
+ * CHANGELOG.md in the repository stays up to date.
+ */
+async function openChangelogPR({ octokit, repo, tag, changelogMd, sha, prManager, defaultBranch }) {
+  const changelogFile = new ChangelogFile(octokit, repo);
+  const { content: baseContent, sha: fileSha } = await changelogFile.read(defaultBranch);
+  const entry      = changelogFile.buildEntry(tag, changelogMd);
+  const newContent = changelogFile.prepend(baseContent, entry);
+
+  await prManager.resetOrCreateBranch(CHANGELOG_BRANCH, sha);
+  await changelogFile.write(
+    CHANGELOG_BRANCH,
+    newContent,
+    fileSha,
+    `chore(changelog): update CHANGELOG.md for ${tag}`,
+  );
+
+  const pr = await prManager.openOrUpdatePR(
+    CHANGELOG_BRANCH,
+    defaultBranch,
+    `📋 Update CHANGELOG.md for ${tag}`,
+    buildChangelogPRBody(tag, changelogMd),
+  );
+
+  core.setOutput('pr_url', pr.html_url);
+  core.info(`Changelog PR: ${pr.html_url}`);
+}
+
+// ── PR body builders ─────────────────────────────────────────────────────────
+
+function buildReleasePRBody(tag, changelogMd) {
+  const changes = changelogMd?.trim()
+    ? `### Changes since last release\n\n${changelogMd}`
+    : '_No notable changes._';
+
+  return [
+    `## 🚀 Pending Release: ${tag}`,
+    '',
+    '> **Merging this PR will trigger the GitHub Release.**',
+    '> This PR is automatically updated with each new push to the default branch.',
+    '',
+    changes,
+    '',
+    '---',
+    '_Auto-generated by [smart-gh-release](https://github.com/your-org/smart-gh-release)_',
+  ].join('\n');
+}
+
+function buildChangelogPRBody(tag, changelogMd) {
+  const changes = changelogMd?.trim()
+    ? `### Changes in ${tag}\n\n${changelogMd}`
+    : '_No notable changes._';
+
+  return [
+    `## 📋 Changelog update for ${tag}`,
+    '',
+    `> The **${tag}** GitHub Release has been published.`,
+    '> Merge this PR to update `CHANGELOG.md` in your repository.',
+    '>',
+    '> ⚠️ If your branch has required reviews or status checks, merge this PR manually.',
+    '',
+    changes,
+    '',
+    '---',
+    '_Auto-generated by [smart-gh-release](https://github.com/your-org/smart-gh-release)_',
+  ].join('\n');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
  * Assemble the full release body from its parts.
@@ -68948,17 +69400,9 @@ async function run() {
 function assembleBody({ customBody, changelogMd, contributorsSection, previousTag, tag, repo }) {
   const parts = [];
 
-  if (customBody) {
-    parts.push(customBody);
-  }
-
-  if (changelogMd) {
-    parts.push(changelogMd);
-  }
-
-  if (contributorsSection) {
-    parts.push(contributorsSection);
-  }
+  if (customBody)          parts.push(customBody);
+  if (changelogMd)         parts.push(changelogMd);
+  if (contributorsSection) parts.push(contributorsSection);
 
   if (previousTag) {
     const compareUrl =

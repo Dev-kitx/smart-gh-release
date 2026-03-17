@@ -83,6 +83,7 @@ jobs:
         with: { fetch-depth: 0 }
         
       - uses: ./
+        id: release
         with:
           auto_version: true
           generate_checksums: true
