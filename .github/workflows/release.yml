@@ -70,6 +70,7 @@ on:
 permissions:
   contents: write       # create releases & upload assets
   discussions: write    # create GitHub Discussions (optional)
+  pull-requests: write  # required for creating pull request
 
 jobs:
   release:
