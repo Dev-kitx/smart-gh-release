@@ -1,0 +1,46 @@
+name: Tag Major Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Full release tag to point the major version at (e.g. v1.2.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  tag-major:
+    name: Update floating major tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag exists
+        run: |
+          if ! git ls-remote --tags origin "${{ inputs.tag }}" | grep -q "${{ inputs.tag }}"; then
+            echo "::error::Tag ${{ inputs.tag }} does not exist in the repository"
+            exit 1
+          fi
+
+      - name: Update floating major version tag
+        run: |
+          TAG="${{ inputs.tag }}"
+          MAJOR=$(echo "$TAG" | grep -oP '^v\d+')
+
+          if [ -z "$MAJOR" ]; then
+            echo "::error::Could not extract major version from tag: $TAG"
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -fa "$MAJOR" "$TAG" -m "Release $TAG"
+          git push origin "$MAJOR" --force
+
+          echo "Moved $MAJOR → $TAG"

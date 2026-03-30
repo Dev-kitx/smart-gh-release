@@ -16,6 +16,7 @@ A feature-rich GitHub Release action that goes beyond what any single marketplac
 | **Required asset validation** | Declare glob patterns that *must* resolve to at least one file. The release is aborted if any required artifact is missing, preventing incomplete publishes. |
 | **Contributor credits** | Lists every human contributor with a link to their GitHub profile. Bots (dependabot, renovate, github-actions, snyk, release-please, …) are automatically excluded. |
 | **GitHub Discussions** | Optionally creates an announcement Discussion in any category you choose, linked back to the release page. |
+| **PR release comments** | After a release is published, automatically posts a comment on every merged PR that was included in the release, linking back to the release URL. |
 | **Rich Job Summary** | A formatted table appears in the GitHub Actions UI showing version, bump level, asset count, contributor count, and the full changelog — no log digging needed. |
 | **Update-or-create** | Set `update_existing: true` to patch an existing release instead of failing. Useful for draft-then-publish workflows. |
 
@@ -118,7 +119,7 @@ With `auto_version: true` you never write a tag or bump a version number manuall
 | Input | Required | Default | Description |
 |---|---|---|---|
 | `changelog_sections` | No | built-in | JSON array to customise sections. See [Custom Sections](#custom-changelog-sections). |
-| `exclude_types` | No | `chore,ci,style,test` | Comma-separated conventional commit types to omit. |
+| `exclude_types` | No | `ci,style,test` | Comma-separated conventional commit types to omit. |
 
 ### Contributors
 
@@ -149,6 +150,12 @@ With `auto_version: true` you never write a tag or bump a version number manuall
 |---|---|---|---|
 | `create_discussion` | No | `false` | Create a Discussion announcing the release. |
 | `discussion_category` | No | `Announcements` | Name of the repository Discussion category to post into. |
+
+### PR Comments
+
+| Input | Required | Default | Description |
+|---|---|---|---|
+| `comment_on_prs` | No | `true` | After publishing a release, post a comment on every merged PR included in the release linking back to the release URL. Set to `false` to disable. |
 
 ---
 
@@ -218,7 +225,7 @@ BREAKING CHANGE: config is now YAML  ← breaking change in footer
 | ⚡ | Performance | `perf` |
 | ♻️ | Refactoring | `refactor` |
 | 📚 | Documentation | `docs` |
-| 📦 | Build & Dependencies | `build`, `deps` |
+| 📦 | Build | `build` |
 | 🔄 | CI / CD | `ci` |
 | 🧪 | Tests | `test`, `tests` |
 | 🔧 | Maintenance | `chore` |
@@ -398,7 +405,7 @@ jobs:
           initial_version: 0.1.0
 
           # Changelog
-          exclude_types: 'chore,ci,style,test'
+          exclude_types: 'ci,style,test'
 
           # Pre-release (remove to publish stable)
           # prerelease_channel: beta
@@ -554,6 +561,8 @@ Or pass it at runtime via `changelog_sections` without touching the source.
 |---|---|
 | Create / update releases | `contents: write` |
 | Upload release assets | `contents: write` |
+| Open / update PRs (`auto_release`) | `pull-requests: write` |
+| Comment on PRs (`comment_on_prs`) | `pull-requests: write` |
 | Create GitHub Discussions | `discussions: write` |
 
 ---
