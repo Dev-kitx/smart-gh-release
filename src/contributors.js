@@ -1,22 +1,5 @@
 import * as core from '@actions/core';
-
-/**
- * GitHub usernames / name patterns that identify bots.
- * Bots are excluded from the contributors section.
- */
-const BOT_PATTERNS = [
-  /\[bot\]$/i,
-  /^dependabot/i,
-  /^renovate/i,
-  /^github-actions/i,
-  /^snyk-bot/i,
-  /^semantic-release-bot/i,
-  /^release-please/i,
-];
-
-function isBot(login) {
-  return BOT_PATTERNS.some((p) => p.test(login));
-}
+import { isBot } from './utils.js';
 
 /**
  * Fetch unique human contributors between two refs.

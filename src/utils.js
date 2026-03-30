@@ -60,6 +60,22 @@ export function parseConventionalCommit(message) {
 }
 
 /**
+ * GitHub usernames / name patterns that identify bots.
+ */
+export const BOT_PATTERNS = [
+  /\[bot\]$/i,
+  /^dependabot/i,
+  /^renovate/i,
+  /^github-actions/i,
+  /^snyk-bot/i,
+  /^semantic-release-bot/i,
+];
+
+export function isBot(loginOrName) {
+  return BOT_PATTERNS.some((p) => p.test(loginOrName));
+}
+
+/**
  * Default changelog section definitions.
  * Order here determines the order they appear in the changelog.
  */
