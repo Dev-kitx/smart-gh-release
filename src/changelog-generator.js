@@ -1,5 +1,5 @@
 import * as core from '@actions/core';
-import { parseConventionalCommit, parseSections } from './utils.js';
+import { parseConventionalCommit, parseSections, isBot } from './utils.js';
 
 export class ChangelogGenerator {
   /**
@@ -28,7 +28,13 @@ export class ChangelogGenerator {
       return { markdown: '', totalCommits: 0, bumpLevel: 'patch', commits: [] };
     }
 
-    const commits = rawCommits.map((c) => ({
+    const humanCommits = rawCommits.filter((c) => {
+      const login = c.author?.login ?? null;
+      const name  = c.commit.author?.name ?? null;
+      return !(login && isBot(login)) && !(name && isBot(name));
+    });
+
+    const commits = humanCommits.map((c) => ({
       ...parseConventionalCommit(c.commit.message),
       sha: c.sha,
       shortSha: c.sha.slice(0, 7),

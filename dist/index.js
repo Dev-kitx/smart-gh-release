@@ -68055,6 +68055,22 @@ function parseConventionalCommit(message) {
 }
 
 /**
+ * GitHub usernames / name patterns that identify bots.
+ */
+const BOT_PATTERNS = [
+  /\[bot\]$/i,
+  /^dependabot/i,
+  /^renovate/i,
+  /^github-actions/i,
+  /^snyk-bot/i,
+  /^semantic-release-bot/i,
+];
+
+function isBot(loginOrName) {
+  return BOT_PATTERNS.some((p) => p.test(loginOrName));
+}
+
+/**
  * Default changelog section definitions.
  * Order here determines the order they appear in the changelog.
  */
@@ -68150,7 +68166,13 @@ class ChangelogGenerator {
       return { markdown: '', totalCommits: 0, bumpLevel: 'patch', commits: [] };
     }
 
-    const commits = rawCommits.map((c) => ({
+    const humanCommits = rawCommits.filter((c) => {
+      const login = c.author?.login ?? null;
+      const name  = c.commit.author?.name ?? null;
+      return !(login && isBot(login)) && !(name && isBot(name));
+    });
+
+    const commits = humanCommits.map((c) => ({
       ...parseConventionalCommit(c.commit.message),
       sha: c.sha,
       shortSha: c.sha.slice(0, 7),
@@ -68543,23 +68565,6 @@ class AssetManager {
 ;// CONCATENATED MODULE: ./src/contributors.js
 
 
-/**
- * GitHub usernames / name patterns that identify bots.
- * Bots are excluded from the contributors section.
- */
-const BOT_PATTERNS = [
-  /\[bot\]$/i,
-  /^dependabot/i,
-  /^renovate/i,
-  /^github-actions/i,
-  /^snyk-bot/i,
-  /^semantic-release-bot/i,
-  /^release-please/i,
-];
-
-function isBot(login) {
-  return BOT_PATTERNS.some((p) => p.test(login));
-}
 
 /**
  * Fetch unique human contributors between two refs.
