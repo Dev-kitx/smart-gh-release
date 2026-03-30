@@ -31,7 +31,8 @@ jobs:
       - name: Update floating major version tag
         run: |
           TAG="${{ inputs.tag }}"
-          MAJOR=$(echo "$TAG" | grep -oP '^v\d+')
+          MAJOR_NUM=$(echo "$TAG" | grep -oP '(?<=^v)\d+')
+          MAJOR="v$(( MAJOR_NUM < 1 ? 1 : MAJOR_NUM ))"
 
           if [ -z "$MAJOR" ]; then
             echo "::error::Could not extract major version from tag: $TAG"
@@ -44,3 +45,34 @@ jobs:
           git push origin "$MAJOR" --force
 
           echo "Moved $MAJOR → $TAG"
+          echo "MAJOR=$MAJOR" >> "$GITHUB_ENV"
+          echo "TAG=$TAG"     >> "$GITHUB_ENV"
+
+      - name: Job summary
+        run: |
+          PREV_MAJOR=$(git tag --list "$MAJOR.*" --sort=-version:refname | grep -v "^$TAG$" | head -1)
+
+          {
+            echo "## 🏷️ Floating Major Tag Updated"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Floating tag** | \`$MAJOR\` |"
+            echo "| **Now points to** | \`$TAG\` |"
+            if [ -n "$PREV_MAJOR" ]; then
+              echo "| **Previously pointed to** | \`$PREV_MAJOR\` |"
+            fi
+            echo ""
+
+            if [ -n "$PREV_MAJOR" ]; then
+              echo "### Commits included since \`$PREV_MAJOR\`"
+              echo ""
+              git log "${PREV_MAJOR}..${TAG}" --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H)) by @%an" | \
+                sed 's/ by @github-actions\[bot\]//' | \
+                sed 's/ by @dependabot\[bot\]//'
+            else
+              echo "### Commits included in \`$TAG\`"
+              echo ""
+              git log "$TAG" --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H)) by @%an" | head -50
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -269,7 +269,16 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
  */
 async function openChangelogPR({ octokit, repo, tag, changelogMd, sha, prManager, defaultBranch }) {
   const changelogFile = new ChangelogFile(octokit, repo);
-  const { content: baseContent, sha: fileSha } = await changelogFile.read(defaultBranch);
+
+  // If a changelog PR is already open, read accumulated content from that branch
+  // so multiple releases before the PR is merged don't overwrite each other.
+  // Always read fileSha from main since the branch is reset to main before writing.
+  const existingPR = await prManager.findOpenPR(CHANGELOG_BRANCH);
+  const { content: baseContent } = existingPR
+    ? await changelogFile.read(CHANGELOG_BRANCH)
+    : await changelogFile.read(defaultBranch);
+  const { sha: fileSha } = await changelogFile.read(defaultBranch);
+
   const entry      = changelogFile.buildEntry(tag, changelogMd);
   const newContent = changelogFile.prepend(baseContent, entry);
 
