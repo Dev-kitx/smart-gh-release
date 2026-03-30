@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 
 - exclude bots from changelog (#10) ([f1ff1a8](https://github.com/Dev-kitx/smart-gh-release/commit/f1ff1a8058472a45ffe264440a691a805e87b89b)) by @aakashbasa
 
+## [v0.3.0] - 2026-03-30
+
+### ✨ Features
+
+- add PR release comments, fix changelog defaults, and add Depend… (#5) (48fd5f7)
+
 ## [v0.2.0] - 2026-03-17
 
 ### ✨ Features
