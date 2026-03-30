@@ -53,6 +53,8 @@ async function run() {
       // Discussions
       createDiscussion:   core.getBooleanInput('create_discussion'),
       discussionCategory: core.getInput('discussion_category') || 'Announcements',
+      // PR comments
+      commentOnPRs: core.getBooleanInput('comment_on_prs'),
     };
 
     const prManager     = new PrManager(octokit, repo);
@@ -91,7 +93,7 @@ async function run() {
 
     // ── 2. Generate changelog ────────────────────────────────────────────────
     const changelogGen = new ChangelogGenerator(octokit, repo, inputs);
-    const { markdown: changelogMd, totalCommits, bumpLevel } = await changelogGen.generate(
+    const { markdown: changelogMd, totalCommits, bumpLevel, commits } = await changelogGen.generate(
       previousTag,
       inputs.targetCommitish,
     );
@@ -162,6 +164,18 @@ async function run() {
     // ── 8. Create GitHub Discussion (optional) ────────────────────────────────
     if (inputs.createDiscussion) {
       await createReleaseDiscussion(octokit, repo, release, inputs.discussionCategory);
+    }
+
+    // ── 8.5. Comment release info on merged PRs ───────────────────────────────
+    if (inputs.commentOnPRs && commits.length > 0) {
+      const commitShas = commits.map((c) => c.sha);
+      const mergedPRs  = await prManager.findMergedPRsForCommits(commitShas, [
+        RELEASE_BRANCH,
+        CHANGELOG_BRANCH,
+      ]);
+      if (mergedPRs.length > 0) {
+        await prManager.commentReleaseOnPRs(mergedPRs, tag, release.html_url);
+      }
     }
 
     // ── 9. Set outputs ────────────────────────────────────────────────────────

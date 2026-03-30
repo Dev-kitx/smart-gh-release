@@ -84,7 +84,7 @@ inputs:
     description: >
       Comma-separated conventional commit types to omit from the changelog.
     required: false
-    default: 'chore,ci,style,test'
+    default: 'ci,style,test'
 
   # ── Contributors ───────────────────────────────────────────────────────────
   include_contributors:
@@ -148,6 +148,15 @@ inputs:
       Commits accumulate across multiple pushes into the same open PR.
 
       Requires `pull-requests: write` permission in your workflow.
+    required: false
+    default: 'true'
+
+  # ── PR comments ───────────────────────────────────────────────────────────
+  comment_on_prs:
+    description: >
+      After publishing a release, post a comment on every merged PR that was
+      included in the release pointing back to the release URL.
+      Set to false to disable.
     required: false
     default: 'true'
 

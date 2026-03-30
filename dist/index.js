@@ -68064,7 +68064,7 @@ const DEFAULT_SECTIONS = [
   { types: ['perf'],                      label: 'Performance',            emoji: '⚡' },
   { types: ['refactor'],                  label: 'Refactoring',            emoji: '♻️'  },
   { types: ['docs'],                      label: 'Documentation',          emoji: '📚' },
-  { types: ['build', 'deps'],             label: 'Build & Dependencies',   emoji: '📦' },
+  { types: ['build'],                      label: 'Build',                  emoji: '📦' },
   { types: ['ci'],                        label: 'CI / CD',                emoji: '🔄' },
   { types: ['test', 'tests'],             label: 'Tests',                  emoji: '🧪' },
   { types: ['chore'],                     label: 'Maintenance',            emoji: '🔧' },
@@ -69035,6 +69035,70 @@ class PrManager {
   }
 
   /**
+   * Given a list of commit SHAs, return unique merged PRs associated with
+   * those commits. Skips PRs from smart-release / smart-changelog branches.
+   *
+   * @param {string[]} commitShas
+   * @param {string[]} [skipBranches=[]]
+   * @returns {Promise<object[]>}
+   */
+  async findMergedPRsForCommits(commitShas, skipBranches = []) {
+    const seen = new Set();
+    const prs  = [];
+
+    for (const sha of commitShas) {
+      try {
+        const { data } = await this.octokit.rest.repos.listPullRequestsAssociatedWithCommit({
+          owner:      this.repo.owner,
+          repo:       this.repo.repo,
+          commit_sha: sha,
+        });
+
+        for (const pr of data) {
+          if (seen.has(pr.number)) continue;
+          if (!pr.merged_at)       continue;
+          if (skipBranches.includes(pr.head.ref)) continue;
+          seen.add(pr.number);
+          prs.push(pr);
+        }
+      } catch (err) {
+        core.debug(`Could not fetch PRs for commit ${sha}: ${err.message}`);
+      }
+    }
+
+    return prs;
+  }
+
+  /**
+   * Post a release notification comment on each PR.
+   *
+   * @param {object[]} prs
+   * @param {string}   tag
+   * @param {string}   releaseUrl
+   */
+  async commentReleaseOnPRs(prs, tag, releaseUrl) {
+    try {
+      const body = `🚀 This PR was included in release [${tag}](${releaseUrl})`;
+
+      for (const pr of prs) {
+        try {
+          await this.octokit.rest.issues.createComment({
+            owner:        this.repo.owner,
+            repo:         this.repo.repo,
+            issue_number: pr.number,
+            body,
+          });
+          core.info(`Commented release ${tag} on PR #${pr.number}`);
+        } catch (err) {
+          core.warning(`Could not comment on PR #${pr.number}: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      core.warning(`PR release comments failed: ${err.message}`);
+    }
+  }
+
+  /**
    * Ensure the `smart-release: pending` label exists in the repo, then apply
    * it to the given PR number.
    *
@@ -69127,6 +69191,8 @@ async function run() {
       // Discussions
       createDiscussion:   core.getBooleanInput('create_discussion'),
       discussionCategory: core.getInput('discussion_category') || 'Announcements',
+      // PR comments
+      commentOnPRs: core.getBooleanInput('comment_on_prs'),
     };
 
     const prManager     = new PrManager(octokit, repo);
@@ -69165,7 +69231,7 @@ async function run() {
 
     // ── 2. Generate changelog ────────────────────────────────────────────────
     const changelogGen = new ChangelogGenerator(octokit, repo, inputs);
-    const { markdown: changelogMd, totalCommits, bumpLevel } = await changelogGen.generate(
+    const { markdown: changelogMd, totalCommits, bumpLevel, commits } = await changelogGen.generate(
       previousTag,
       inputs.targetCommitish,
     );
@@ -69236,6 +69302,18 @@ async function run() {
     // ── 8. Create GitHub Discussion (optional) ────────────────────────────────
     if (inputs.createDiscussion) {
       await createReleaseDiscussion(octokit, repo, release, inputs.discussionCategory);
+    }
+
+    // ── 8.5. Comment release info on merged PRs ───────────────────────────────
+    if (inputs.commentOnPRs && commits.length > 0) {
+      const commitShas = commits.map((c) => c.sha);
+      const mergedPRs  = await prManager.findMergedPRsForCommits(commitShas, [
+        RELEASE_BRANCH,
+        CHANGELOG_BRANCH,
+      ]);
+      if (mergedPRs.length > 0) {
+        await prManager.commentReleaseOnPRs(mergedPRs, tag, release.html_url);
+      }
     }
 
     // ── 9. Set outputs ────────────────────────────────────────────────────────

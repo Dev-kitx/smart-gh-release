@@ -69,7 +69,7 @@ export const DEFAULT_SECTIONS = [
   { types: ['perf'],                      label: 'Performance',            emoji: '⚡' },
   { types: ['refactor'],                  label: 'Refactoring',            emoji: '♻️'  },
   { types: ['docs'],                      label: 'Documentation',          emoji: '📚' },
-  { types: ['build', 'deps'],             label: 'Build & Dependencies',   emoji: '📦' },
+  { types: ['build'],                      label: 'Build',                  emoji: '📦' },
   { types: ['ci'],                        label: 'CI / CD',                emoji: '🔄' },
   { types: ['test', 'tests'],             label: 'Tests',                  emoji: '🧪' },
   { types: ['chore'],                     label: 'Maintenance',            emoji: '🔧' },

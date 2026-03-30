@@ -148,6 +148,70 @@ export class PrManager {
   }
 
   /**
+   * Given a list of commit SHAs, return unique merged PRs associated with
+   * those commits. Skips PRs from smart-release / smart-changelog branches.
+   *
+   * @param {string[]} commitShas
+   * @param {string[]} [skipBranches=[]]
+   * @returns {Promise<object[]>}
+   */
+  async findMergedPRsForCommits(commitShas, skipBranches = []) {
+    const seen = new Set();
+    const prs  = [];
+
+    for (const sha of commitShas) {
+      try {
+        const { data } = await this.octokit.rest.repos.listPullRequestsAssociatedWithCommit({
+          owner:      this.repo.owner,
+          repo:       this.repo.repo,
+          commit_sha: sha,
+        });
+
+        for (const pr of data) {
+          if (seen.has(pr.number)) continue;
+          if (!pr.merged_at)       continue;
+          if (skipBranches.includes(pr.head.ref)) continue;
+          seen.add(pr.number);
+          prs.push(pr);
+        }
+      } catch (err) {
+        core.debug(`Could not fetch PRs for commit ${sha}: ${err.message}`);
+      }
+    }
+
+    return prs;
+  }
+
+  /**
+   * Post a release notification comment on each PR.
+   *
+   * @param {object[]} prs
+   * @param {string}   tag
+   * @param {string}   releaseUrl
+   */
+  async commentReleaseOnPRs(prs, tag, releaseUrl) {
+    try {
+      const body = `🚀 This PR was included in release [${tag}](${releaseUrl})`;
+
+      for (const pr of prs) {
+        try {
+          await this.octokit.rest.issues.createComment({
+            owner:        this.repo.owner,
+            repo:         this.repo.repo,
+            issue_number: pr.number,
+            body,
+          });
+          core.info(`Commented release ${tag} on PR #${pr.number}`);
+        } catch (err) {
+          core.warning(`Could not comment on PR #${pr.number}: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      core.warning(`PR release comments failed: ${err.message}`);
+    }
+  }
+
+  /**
    * Ensure the `smart-release: pending` label exists in the repo, then apply
    * it to the given PR number.
    *
