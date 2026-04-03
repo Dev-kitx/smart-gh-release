@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('@actions/core', () => ({ info: vi.fn(), warning: vi.fn() }));
+
 import { ChangelogGenerator } from '../changelog-generator.js';
 
 /** Minimal stub commit factory */
@@ -91,5 +94,38 @@ describe('ChangelogGenerator', () => {
 
     expect(markdown).toBe('');
     expect(totalCommits).toBe(0);
+  });
+
+  it('uses listCommits when base is null (first release)', async () => {
+    const commits = [makeCommit('feat: initial feature')];
+    const gen = new ChangelogGenerator(makeOctokit(commits), { owner: 'o', repo: 'r' }, defaultInputs);
+    const { markdown } = await gen.generate(null, 'HEAD');
+    expect(markdown).toContain('initial feature');
+  });
+
+  it('returns empty markdown and warns when fetchCommits throws', async () => {
+    const brokenOctokit = {
+      rest: {
+        repos: {
+          compareCommitsWithBasehead: async () => { throw new Error('rate limited'); },
+          listCommits: async () => { throw new Error('rate limited'); },
+        },
+      },
+    };
+    const gen = new ChangelogGenerator(brokenOctokit, { owner: 'o', repo: 'r' }, defaultInputs);
+    const { markdown, totalCommits } = await gen.generate('v1.0.0', 'HEAD');
+    expect(markdown).toBe('');
+    expect(totalCommits).toBe(0);
+  });
+
+  it('filters out bot commits from the changelog', async () => {
+    const commits = [
+      makeCommit('feat: human feature', 'alice'),
+      makeCommit('chore: bot update', 'dependabot[bot]'),
+    ];
+    const gen = new ChangelogGenerator(makeOctokit(commits), { owner: 'o', repo: 'r' }, defaultInputs);
+    const { markdown } = await gen.generate('v1.0.0', 'HEAD');
+    expect(markdown).toContain('human feature');
+    expect(markdown).not.toContain('bot update');
   });
 });

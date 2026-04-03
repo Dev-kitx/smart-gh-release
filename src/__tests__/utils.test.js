@@ -91,3 +91,23 @@ describe('parseSections', () => {
     expect(parseSections(JSON.stringify(custom))).toEqual(custom);
   });
 });
+
+// ── getMimeType ───────────────────────────────────────────────────────────────
+
+import { getMimeType } from '../utils.js';
+
+describe('getMimeType', () => {
+  it('returns application/zip for .zip', () => expect(getMimeType('archive.zip')).toBe('application/zip'));
+  it('returns application/gzip for .gz',  () => expect(getMimeType('file.gz')).toBe('application/gzip'));
+  it('returns application/gzip for .tgz', () => expect(getMimeType('file.tgz')).toBe('application/gzip'));
+  it('returns text/plain for .txt',        () => expect(getMimeType('notes.txt')).toBe('text/plain'));
+  it('returns text/markdown for .md',      () => expect(getMimeType('README.md')).toBe('text/markdown'));
+  it('returns application/json for .json', () => expect(getMimeType('data.json')).toBe('application/json'));
+  it('returns application/wasm for .wasm', () => expect(getMimeType('module.wasm')).toBe('application/wasm'));
+  it('returns application/octet-stream for unknown extensions', () => {
+    expect(getMimeType('binary.xyz')).toBe('application/octet-stream');
+  });
+  it('returns application/octet-stream for no extension', () => {
+    expect(getMimeType('Makefile')).toBe('application/octet-stream');
+  });
+});

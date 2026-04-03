@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('@actions/core', () => ({ info: vi.fn(), warning: vi.fn() }));
+
 import { getContributors } from '../contributors.js';
 
 function makeCommit(login, name) {
@@ -59,5 +62,32 @@ describe('getContributors', () => {
     const result = await getContributors(makeOctokit(commits), { owner: 'o', repo: 'r' }, 'v1.0.0', 'HEAD');
     expect(result.count).toBe(1);
     expect(result.markdown).toContain('External Contributor');
+  });
+
+  it('uses listCommits when base is null (first release)', async () => {
+    const commits = [makeCommit('alice', 'Alice')];
+    const result = await getContributors(makeOctokit(commits), { owner: 'o', repo: 'r' }, null, 'HEAD');
+    expect(result.count).toBe(1);
+    expect(result.markdown).toContain('@alice');
+  });
+
+  it('returns empty result and warns when API throws', async () => {
+    const brokenOctokit = {
+      rest: {
+        repos: {
+          compareCommitsWithBasehead: async () => { throw new Error('network error'); },
+          listCommits: async () => { throw new Error('network error'); },
+        },
+      },
+    };
+    const result = await getContributors(brokenOctokit, { owner: 'o', repo: 'r' }, 'v1.0.0', 'HEAD');
+    expect(result.count).toBe(0);
+    expect(result.markdown).toBe('');
+  });
+
+  it('skips commits with no login and no name', async () => {
+    const commits = [{ sha: 'abc', commit: { author: { name: null } }, author: null }];
+    const result = await getContributors(makeOctokit(commits), { owner: 'o', repo: 'r' }, 'v1.0.0', 'HEAD');
+    expect(result.count).toBe(0);
   });
 });
