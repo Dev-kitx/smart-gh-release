@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.3.3] - 2026-04-03
+
+### 📌 Other Changes
+
+- Add step to generate GitHub App token in workflow (#13) ([d26da48](https://github.com/Dev-kitx/smart-gh-release/commit/d26da48d731a738f07d2c157b4a14f17a21ecd8b)) by @aakashbasa
+
 ## [v0.3.2] - 2026-03-30
 
 ### 🐛 Bug Fixes
