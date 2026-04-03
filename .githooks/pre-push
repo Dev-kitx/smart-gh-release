@@ -1,0 +1,25 @@
+#!/bin/sh
+# pre-push hook — ensures dist/ is always up to date before pushing.
+#
+# Runs `npm run build`, then checks whether the build produced any changes
+# to dist/. If it did, the push is aborted and you are prompted to commit
+# the updated dist/ before retrying.
+
+set -e
+
+echo "▶ pre-push: building dist/ ..."
+npm run build --silent
+
+if ! git diff --quiet dist/; then
+  echo ""
+  echo "✗ dist/ is out of date. The build produced changes that are not committed."
+  echo ""
+  echo "  Run the following to fix:"
+  echo "    git add dist/"
+  echo "    git commit -m 'chore: rebuild dist'"
+  echo "    git push"
+  echo ""
+  exit 1
+fi
+
+echo "✓ dist/ is up to date."

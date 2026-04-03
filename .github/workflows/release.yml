@@ -66,6 +66,12 @@ name: Release
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'codecov.yml'
+      - 'dist/**'
+  workflow_dispatch: # allow manual trigger from the Actions tab
 
 permissions:
   contents: write       # create releases & upload assets
