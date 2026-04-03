@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/",
-    "prepare": "npm run build"
+    "prepare": "npm run build && npm run setup-hooks",
+    "setup-hooks": "cp .githooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push"
   },
   "dependencies": {
     "@actions/core": "^3.0.0",
