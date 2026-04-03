@@ -1,5 +1,4 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
 import { VersionManager } from '../version-manager.js';
 
 /** Build a minimal octokit stub */
@@ -41,8 +40,8 @@ describe('VersionManager', () => {
       autoVersion: false,
     });
     const { tag, version } = await vm.resolve();
-    assert.equal(tag, 'v2.0.0');
-    assert.equal(version, '2.0.0');
+    expect(tag).toBe('v2.0.0');
+    expect(version).toBe('2.0.0');
   });
 
   it('creates initial version when no tags exist', async () => {
@@ -52,9 +51,9 @@ describe('VersionManager', () => {
       autoVersion: true,
     });
     const { tag, version, previousTag } = await vm.resolve();
-    assert.equal(tag, 'v0.1.0');
-    assert.equal(version, '0.1.0');
-    assert.equal(previousTag, null);
+    expect(tag).toBe('v0.1.0');
+    expect(version).toBe('0.1.0');
+    expect(previousTag).toBeNull();
   });
 
   it('bumps minor version for feat commits', async () => {
@@ -67,7 +66,7 @@ describe('VersionManager', () => {
       { ...baseInputs, tag: '', autoVersion: true },
     );
     const { tag } = await vm.resolve();
-    assert.equal(tag, 'v1.1.0');
+    expect(tag).toBe('v1.1.0');
   });
 
   it('bumps major version for breaking changes', async () => {
@@ -80,7 +79,7 @@ describe('VersionManager', () => {
       { ...baseInputs, tag: '', autoVersion: true },
     );
     const { tag } = await vm.resolve();
-    assert.equal(tag, 'v2.0.0');
+    expect(tag).toBe('v2.0.0');
   });
 
   it('bumps patch version for fix commits', async () => {
@@ -93,7 +92,7 @@ describe('VersionManager', () => {
       { ...baseInputs, tag: '', autoVersion: true },
     );
     const { tag } = await vm.resolve();
-    assert.equal(tag, 'v1.2.4');
+    expect(tag).toBe('v1.2.4');
   });
 
   it('creates pre-release version on a channel', async () => {
@@ -106,7 +105,7 @@ describe('VersionManager', () => {
       { ...baseInputs, tag: '', autoVersion: true, prereleaseChannel: 'beta' },
     );
     const { tag } = await vm.resolve();
-    assert.equal(tag, 'v1.1.0-beta.1');
+    expect(tag).toBe('v1.1.0-beta.1');
   });
 
   it('throws when neither tag nor auto_version is provided', async () => {
@@ -115,6 +114,6 @@ describe('VersionManager', () => {
       tag: '',
       autoVersion: false,
     });
-    await assert.rejects(() => vm.resolve(), /auto_version/);
+    await expect(vm.resolve()).rejects.toThrow(/auto_version/);
   });
 });

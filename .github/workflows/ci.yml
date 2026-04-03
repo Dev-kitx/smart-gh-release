@@ -26,6 +26,21 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Generate coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage/
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: Dev-kitx/smart-gh-release    
+
       - name: Build dist
         run: npm run build
 

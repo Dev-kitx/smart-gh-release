@@ -1,5 +1,4 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
 
 import {
   parseMultilineInput,
@@ -13,27 +12,27 @@ import {
 
 describe('parseMultilineInput', () => {
   it('splits on newlines and trims whitespace', () => {
-    assert.deepEqual(parseMultilineInput('  a  \n  b  \n  c  '), ['a', 'b', 'c']);
+    expect(parseMultilineInput('  a  \n  b  \n  c  ')).toEqual(['a', 'b', 'c']);
   });
 
   it('filters blank lines', () => {
-    assert.deepEqual(parseMultilineInput('a\n\n\nb'), ['a', 'b']);
+    expect(parseMultilineInput('a\n\n\nb')).toEqual(['a', 'b']);
   });
 
   it('returns empty array for empty input', () => {
-    assert.deepEqual(parseMultilineInput(''), []);
-    assert.deepEqual(parseMultilineInput(undefined), []);
+    expect(parseMultilineInput('')).toEqual([]);
+    expect(parseMultilineInput(undefined)).toEqual([]);
   });
 });
 
 // ── formatBytes ───────────────────────────────────────────────────────────────
 
 describe('formatBytes', () => {
-  it('formats 0 bytes', () => assert.equal(formatBytes(0), '0 B'));
-  it('formats bytes',   () => assert.equal(formatBytes(512), '512.0 B'));
-  it('formats KB',      () => assert.equal(formatBytes(1024), '1.0 KB'));
-  it('formats MB',      () => assert.equal(formatBytes(1024 ** 2), '1.0 MB'));
-  it('formats GB',      () => assert.equal(formatBytes(1024 ** 3), '1.0 GB'));
+  it('formats 0 bytes', () => expect(formatBytes(0)).toBe('0 B'));
+  it('formats bytes',   () => expect(formatBytes(512)).toBe('512.0 B'));
+  it('formats KB',      () => expect(formatBytes(1024)).toBe('1.0 KB'));
+  it('formats MB',      () => expect(formatBytes(1024 ** 2)).toBe('1.0 MB'));
+  it('formats GB',      () => expect(formatBytes(1024 ** 3)).toBe('1.0 GB'));
 });
 
 // ── parseConventionalCommit ───────────────────────────────────────────────────
@@ -41,37 +40,37 @@ describe('formatBytes', () => {
 describe('parseConventionalCommit', () => {
   it('parses a plain feat commit', () => {
     const result = parseConventionalCommit('feat: add dark mode');
-    assert.equal(result.type, 'feat');
-    assert.equal(result.subject, 'add dark mode');
-    assert.equal(result.scope, null);
-    assert.equal(result.breaking, false);
+    expect(result.type).toBe('feat');
+    expect(result.subject).toBe('add dark mode');
+    expect(result.scope).toBeNull();
+    expect(result.breaking).toBe(false);
   });
 
   it('parses scope', () => {
     const result = parseConventionalCommit('fix(auth): correct token expiry');
-    assert.equal(result.type, 'fix');
-    assert.equal(result.scope, 'auth');
-    assert.equal(result.subject, 'correct token expiry');
+    expect(result.type).toBe('fix');
+    expect(result.scope).toBe('auth');
+    expect(result.subject).toBe('correct token expiry');
   });
 
   it('detects breaking change via !', () => {
     const result = parseConventionalCommit('feat!: drop Node 16 support');
-    assert.equal(result.breaking, true);
-    assert.equal(result.type, 'feat');
+    expect(result.breaking).toBe(true);
+    expect(result.type).toBe('feat');
   });
 
   it('detects breaking change in footer', () => {
     const result = parseConventionalCommit(
       'feat: new auth flow\n\nBREAKING CHANGE: session format changed',
     );
-    assert.equal(result.breaking, true);
+    expect(result.breaking).toBe(true);
   });
 
   it('handles non-conventional commits', () => {
     const result = parseConventionalCommit('Update README');
-    assert.equal(result.type, null);
-    assert.equal(result.subject, 'Update README');
-    assert.equal(result.breaking, false);
+    expect(result.type).toBeNull();
+    expect(result.subject).toBe('Update README');
+    expect(result.breaking).toBe(false);
   });
 });
 
@@ -79,16 +78,36 @@ describe('parseConventionalCommit', () => {
 
 describe('parseSections', () => {
   it('returns DEFAULT_SECTIONS when input is empty', () => {
-    assert.deepEqual(parseSections(''), DEFAULT_SECTIONS);
-    assert.deepEqual(parseSections(undefined), DEFAULT_SECTIONS);
+    expect(parseSections('')).toEqual(DEFAULT_SECTIONS);
+    expect(parseSections(undefined)).toEqual(DEFAULT_SECTIONS);
   });
 
   it('returns DEFAULT_SECTIONS on invalid JSON', () => {
-    assert.deepEqual(parseSections('{not json'), DEFAULT_SECTIONS);
+    expect(parseSections('{not json')).toEqual(DEFAULT_SECTIONS);
   });
 
   it('parses valid JSON array', () => {
     const custom = [{ types: ['feat'], label: 'Features', emoji: '✨' }];
-    assert.deepEqual(parseSections(JSON.stringify(custom)), custom);
+    expect(parseSections(JSON.stringify(custom))).toEqual(custom);
+  });
+});
+
+// ── getMimeType ───────────────────────────────────────────────────────────────
+
+import { getMimeType } from '../utils.js';
+
+describe('getMimeType', () => {
+  it('returns application/zip for .zip', () => expect(getMimeType('archive.zip')).toBe('application/zip'));
+  it('returns application/gzip for .gz',  () => expect(getMimeType('file.gz')).toBe('application/gzip'));
+  it('returns application/gzip for .tgz', () => expect(getMimeType('file.tgz')).toBe('application/gzip'));
+  it('returns text/plain for .txt',        () => expect(getMimeType('notes.txt')).toBe('text/plain'));
+  it('returns text/markdown for .md',      () => expect(getMimeType('README.md')).toBe('text/markdown'));
+  it('returns application/json for .json', () => expect(getMimeType('data.json')).toBe('application/json'));
+  it('returns application/wasm for .wasm', () => expect(getMimeType('module.wasm')).toBe('application/wasm'));
+  it('returns application/octet-stream for unknown extensions', () => {
+    expect(getMimeType('binary.xyz')).toBe('application/octet-stream');
+  });
+  it('returns application/octet-stream for no extension', () => {
+    expect(getMimeType('Makefile')).toBe('application/octet-stream');
   });
 });

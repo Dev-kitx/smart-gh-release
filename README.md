@@ -1,5 +1,7 @@
 # Smart GitHub Release Action
 
+[![codecov](https://codecov.io/gh/Dev-kitx/smart-gh-release/graph/badge.svg?token=MH8WESXRR8)](https://codecov.io/gh/Dev-kitx/smart-gh-release)
+
 A feature-rich GitHub Release action that goes beyond what any single marketplace action offers — auto semantic versioning, smart grouped changelogs, SHA-256 checksums, contributor credits, pre-release channels, required-asset validation, GitHub Discussions, and rich Job Summaries, all in one action.
 
 ---

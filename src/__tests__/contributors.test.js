@@ -1,5 +1,7 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('@actions/core', () => ({ info: vi.fn(), warning: vi.fn() }));
+
 import { getContributors } from '../contributors.js';
 
 function makeCommit(login, name) {
@@ -31,9 +33,9 @@ describe('getContributors', () => {
       makeCommit('bob', 'Bob'),
     ];
     const result = await getContributors(makeOctokit(commits), { owner: 'o', repo: 'r' }, 'v1.0.0', 'HEAD');
-    assert.equal(result.count, 2);
-    assert.ok(result.markdown.includes('@alice'));
-    assert.ok(result.markdown.includes('@bob'));
+    expect(result.count).toBe(2);
+    expect(result.markdown).toContain('@alice');
+    expect(result.markdown).toContain('@bob');
   });
 
   it('excludes bot accounts', async () => {
@@ -43,22 +45,49 @@ describe('getContributors', () => {
       makeCommit('alice', 'Alice'),
     ];
     const result = await getContributors(makeOctokit(commits), { owner: 'o', repo: 'r' }, 'v1.0.0', 'HEAD');
-    assert.equal(result.count, 1);
-    assert.ok(!result.markdown.includes('dependabot'));
-    assert.ok(result.markdown.includes('@alice'));
+    expect(result.count).toBe(1);
+    expect(result.markdown).not.toContain('dependabot');
+    expect(result.markdown).toContain('@alice');
   });
 
   it('returns empty result when all contributors are bots', async () => {
     const commits = [makeCommit('github-actions[bot]', 'GitHub Actions')];
     const result = await getContributors(makeOctokit(commits), { owner: 'o', repo: 'r' }, 'v1.0.0', 'HEAD');
-    assert.equal(result.count, 0);
-    assert.equal(result.markdown, '');
+    expect(result.count).toBe(0);
+    expect(result.markdown).toBe('');
   });
 
   it('handles commits without a github login (falls back to name)', async () => {
     const commits = [makeCommit(null, 'External Contributor')];
     const result = await getContributors(makeOctokit(commits), { owner: 'o', repo: 'r' }, 'v1.0.0', 'HEAD');
-    assert.equal(result.count, 1);
-    assert.ok(result.markdown.includes('External Contributor'));
+    expect(result.count).toBe(1);
+    expect(result.markdown).toContain('External Contributor');
+  });
+
+  it('uses listCommits when base is null (first release)', async () => {
+    const commits = [makeCommit('alice', 'Alice')];
+    const result = await getContributors(makeOctokit(commits), { owner: 'o', repo: 'r' }, null, 'HEAD');
+    expect(result.count).toBe(1);
+    expect(result.markdown).toContain('@alice');
+  });
+
+  it('returns empty result and warns when API throws', async () => {
+    const brokenOctokit = {
+      rest: {
+        repos: {
+          compareCommitsWithBasehead: async () => { throw new Error('network error'); },
+          listCommits: async () => { throw new Error('network error'); },
+        },
+      },
+    };
+    const result = await getContributors(brokenOctokit, { owner: 'o', repo: 'r' }, 'v1.0.0', 'HEAD');
+    expect(result.count).toBe(0);
+    expect(result.markdown).toBe('');
+  });
+
+  it('skips commits with no login and no name', async () => {
+    const commits = [{ sha: 'abc', commit: { author: { name: null } }, author: null }];
+    const result = await getContributors(makeOctokit(commits), { owner: 'o', repo: 'r' }, 'v1.0.0', 'HEAD');
+    expect(result.count).toBe(0);
   });
 });
