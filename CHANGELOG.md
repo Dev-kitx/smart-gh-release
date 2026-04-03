@@ -10,6 +10,13 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.3.9] - 2026-04-03
+
+### 📌 Other Changes
+
+- Update Codecov action to version 6 (#20) ([4301340](https://github.com/Dev-kitx/smart-gh-release/commit/43013408befc35073af27288de31f2d22c25f2f5)) by @aakashbasa
+
 ## [v0.3.8] - 2026-04-03
 
 ### 📦 Build
