@@ -8,6 +8,11 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.3.7] - 2026-04-03
+
+_No notable changes._
+
 ## [v0.3.6] - 2026-04-03
 
 _No notable changes._
