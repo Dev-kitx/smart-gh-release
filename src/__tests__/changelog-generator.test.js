@@ -1,5 +1,4 @@
-import { describe, it, mock } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
 import { ChangelogGenerator } from '../changelog-generator.js';
 
 /** Minimal stub commit factory */
@@ -39,10 +38,10 @@ describe('ChangelogGenerator', () => {
     const gen = new ChangelogGenerator(makeOctokit(commits), { owner: 'o', repo: 'r' }, defaultInputs);
     const { markdown, bumpLevel } = await gen.generate('v1.0.0', 'HEAD');
 
-    assert.ok(markdown.includes('✨ Features'), 'should have Features section');
-    assert.ok(markdown.includes('🐛 Bug Fixes'), 'should have Bug Fixes section');
-    assert.ok(markdown.includes('add OAuth login'), 'should include feat subject');
-    assert.equal(bumpLevel, 'minor', 'feat commits should trigger minor bump');
+    expect(markdown).toContain('✨ Features');
+    expect(markdown).toContain('🐛 Bug Fixes');
+    expect(markdown).toContain('add OAuth login');
+    expect(bumpLevel).toBe('minor');
   });
 
   it('puts breaking changes first and sets major bump', async () => {
@@ -54,8 +53,8 @@ describe('ChangelogGenerator', () => {
     const gen = new ChangelogGenerator(makeOctokit(commits), { owner: 'o', repo: 'r' }, defaultInputs);
     const { markdown, bumpLevel } = await gen.generate('v1.0.0', 'HEAD');
 
-    assert.ok(markdown.startsWith('### 🚨 Breaking Changes'), 'breaking changes must come first');
-    assert.equal(bumpLevel, 'major');
+    expect(markdown.startsWith('### 🚨 Breaking Changes')).toBe(true);
+    expect(bumpLevel).toBe('major');
   });
 
   it('excludes commit types listed in excludeTypes', async () => {
@@ -72,9 +71,9 @@ describe('ChangelogGenerator', () => {
     );
     const { markdown } = await gen.generate('v1.0.0', 'HEAD');
 
-    assert.ok(!markdown.includes('update lockfile'), 'chore should be excluded');
-    assert.ok(!markdown.includes('add workflow'), 'ci should be excluded');
-    assert.ok(markdown.includes('real fix'), 'fix should remain');
+    expect(markdown).not.toContain('update lockfile');
+    expect(markdown).not.toContain('add workflow');
+    expect(markdown).toContain('real fix');
   });
 
   it('places uncategorised commits in Other Changes', async () => {
@@ -83,14 +82,14 @@ describe('ChangelogGenerator', () => {
     const gen = new ChangelogGenerator(makeOctokit(commits), { owner: 'o', repo: 'r' }, defaultInputs);
     const { markdown } = await gen.generate('v1.0.0', 'HEAD');
 
-    assert.ok(markdown.includes('📌 Other Changes'));
+    expect(markdown).toContain('📌 Other Changes');
   });
 
   it('returns empty markdown when there are no commits', async () => {
     const gen = new ChangelogGenerator(makeOctokit([]), { owner: 'o', repo: 'r' }, defaultInputs);
     const { markdown, totalCommits } = await gen.generate('v1.0.0', 'HEAD');
 
-    assert.equal(markdown, '');
-    assert.equal(totalCommits, 0);
+    expect(markdown).toBe('');
+    expect(totalCommits).toBe(0);
   });
 });

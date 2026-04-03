@@ -8,7 +8,8 @@
   },
   "scripts": {
     "build": "ncc build src/index.js --license licenses.txt -o dist",
-    "test": "node --test src/__tests__/**/*.test.js",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint src/",
     "prepare": "npm run build"
   },
@@ -20,6 +21,8 @@
   },
   "devDependencies": {
     "@vercel/ncc": "^0.38.2",
-    "eslint": "^10.1.0"
+    "@vitest/coverage-v8": "^4.1.2",
+    "eslint": "^10.1.0",
+    "vitest": "^4.1.2"
   }
 }
