@@ -9,6 +9,13 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.3.8] - 2026-04-03
+
+### 📦 Build
+
+- rebuild dist (#18) ([21de48b](https://github.com/Dev-kitx/smart-gh-release/commit/21de48be96e50493f62001edd66c14d049f723c0)) by @aakashbasa
+
 ## [v0.3.7] - 2026-04-03
 
 _No notable changes._
