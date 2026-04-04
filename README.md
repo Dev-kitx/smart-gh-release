@@ -139,6 +139,12 @@ With `auto_version: true` you never write a tag or bump a version number manuall
 | `fail_on_unmatched_files` | No | `false` | Fail if a glob in `files` matches nothing. |
 | `required_assets` | No | — | Newline-separated globs that **must** match a resolved file or the release is aborted. |
 
+### Version File Bumping
+
+| Input | Required | Default | Description |
+|---|---|---|---|
+| `bump_version_in_files` | No | — | Newline- or comma-separated list of repo-relative file paths whose version string should be bumped to match the new release version. See [Bumping Version Files](#bumping-version-files). |
+
 ### Behaviour
 
 | Input | Required | Default | Description |
@@ -439,6 +445,49 @@ jobs:
 
 ---
 
+## Bumping Version Files
+
+Use `bump_version_in_files` to keep your version files in sync with the release tag. The action commits the bumped files onto the same PR branch as `CHANGELOG.md`, so everything lands in the default branch together when the PR is merged.
+
+```yaml
+- uses: your-org/smart-gh-release@v1
+  with:
+    auto_version: true
+    bump_version_in_files: |
+      package.json
+      pyproject.toml
+      src/mylib/__init__.py
+```
+
+### Supported file formats
+
+| File | Pattern updated |
+|---|---|
+| `package.json` | `"version": "x.y.z"` |
+| `pyproject.toml` | `version = "x.y.z"` (PEP 517 / Poetry / Hatch) |
+| `setup.cfg` | `version = x.y.z` |
+| `setup.py` | `version="x.y.z"` or `version='x.y.z'` |
+| `__init__.py`, `_version.py`, `version.py` | `__version__ = "x.y.z"` |
+| `Cargo.toml` | `version = "x.y.z"` |
+| `*.gemspec` | `.version = "x.y.z"` |
+
+Files with an unrecognised format or a missing version pattern are skipped with a warning — the release is never aborted because of a version bump failure.
+
+### When the bump reaches your default branch
+
+The timing differs between the two release modes:
+
+| Mode | Branch bumped | Reaches default branch when |
+|---|---|---|
+| `auto_release: false` | `smart-release` | The Release PR is merged (same event that triggers the GitHub Release — fully atomic) |
+| `auto_release: true` | `smart-changelog` | The Changelog PR is merged (after the GitHub Release is already live) |
+
+**`auto_release: false` is the atomic choice.** Version files, `CHANGELOG.md`, and the GitHub Release are all gated behind the same PR merge. There is no window where the release tag says `v1.3.0` but `package.json` in `main` still reads `1.2.0`.
+
+**`auto_release: true` has a short lag.** The release is published immediately; the version bump lands in `main` only when you merge the `smart-changelog` PR. For most projects this is acceptable, but if downstream tooling reads the version file from `main` straight after a release, prefer `auto_release: false`.
+
+---
+
 ## Auto Release Mode
 
 The `auto_release` input gives you two distinct release strategies.
@@ -452,10 +501,10 @@ Behaves exactly like the classic mode: a GitHub Release is created on every push
 ```
 push to main
   └─► create GitHub Release immediately
-  └─► open / update PR: smart-changelog → main  (updates CHANGELOG.md)
+  └─► open / update PR: smart-changelog → main  (updates CHANGELOG.md + bumps version files)
 ```
 
-Merge the `smart-changelog` PR whenever you are ready. It does **not** gate the release — the release is already live.
+Merge the `smart-changelog` PR whenever you are ready. It does **not** gate the release — the release is already live. Version files are bumped in this PR, so there is a short window between the release being published and the version bump landing in `main`.
 
 ```yaml
 permissions:
@@ -477,13 +526,13 @@ No release is created on push. Instead, the action opens (or updates) a pull req
 
 ```
 push to main  (any number of times)
-  └─► open / update PR: smart-release → main  (accumulates CHANGELOG.md)
+  └─► open / update PR: smart-release → main  (accumulates CHANGELOG.md + bumps version files)
 
 merge smart-release PR
   └─► create GitHub Release
 ```
 
-Commits accumulate across multiple pushes into the same open PR — identical to how `release-please` works.
+Commits accumulate across multiple pushes into the same open PR — identical to how `release-please` works. Version files are bumped on the `smart-release` branch, so merging the PR atomically updates `CHANGELOG.md`, version files, and creates the GitHub Release in one step.
 
 ```yaml
 permissions:
@@ -531,17 +580,27 @@ gh-release-action/
 └── src/
     ├── index.js                    # Main orchestrator
     ├── version-manager.js          # Semver resolution & auto-bump
+    ├── version-bumper.js           # Version file detection & replacement
     ├── changelog-generator.js      # Conventional commit parsing → Markdown
+    ├── changelog-file.js           # CHANGELOG.md read/write via GitHub API
     ├── asset-manager.js            # Glob resolution, upload, checksums
     ├── contributors.js             # Contributor credit extraction
     ├── release-manager.js          # GitHub release CRUD
+    ├── pr-manager.js               # PR open/update/label via GitHub API
     ├── discussions.js              # GitHub Discussions via GraphQL
     ├── summary.js                  # GitHub Actions Job Summary
     ├── utils.js                    # Shared helpers
     └── __tests__/
         ├── utils.test.js
         ├── changelog-generator.test.js
+        ├── changelog-file.test.js
         ├── version-manager.test.js
+        ├── version-bumper.test.js
+        ├── asset-manager.test.js
+        ├── release-manager.test.js
+        ├── pr-manager.test.js
+        ├── discussions.test.js
+        ├── summary.test.js
         └── contributors.test.js
 ```
 
