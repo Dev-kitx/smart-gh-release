@@ -42360,7 +42360,130 @@ class PrManager {
   }
 }
 
+;// CONCATENATED MODULE: ./src/version-bumper.js
+
+
+// Each detector: match (filename pattern), find (version existence check), replace (fn)
+const DETECTORS = [
+  {
+    match:   /(?:^|\/)package\.json$/,
+    find:    /"version"\s*:\s*"[^"]+"/,
+    replace: (content, v) => content.replace(/"version"\s*:\s*"[^"]+"/, `"version": "${v}"`),
+  },
+  {
+    match:   /(?:^|\/)pyproject\.toml$/,
+    find:    /^version\s*=\s*"[^"]+"/m,
+    replace: (content, v) => content.replace(/^(version\s*=\s*)"[^"]+"/m, `$1"${v}"`),
+  },
+  {
+    match:   /(?:^|\/)setup\.cfg$/,
+    find:    /^version\s*=\s*.+$/m,
+    replace: (content, v) => content.replace(/^(version\s*=\s*).+$/m, `$1${v}`),
+  },
+  {
+    match:   /(?:^|\/)setup\.py$/,
+    find:    /\bversion\s*=\s*(['"])[^'"]+\1/,
+    replace: (content, v) => content.replace(/(\bversion\s*=\s*['"])[^'"]+(['"])/, `$1${v}$2`),
+  },
+  {
+    // __init__.py, _version.py, version.py
+    match:   /(?:^|\/)(?:__init__|_version|version)\.py$/,
+    find:    /__version__\s*=\s*(['"])[^'"]+\1/,
+    replace: (content, v) => content.replace(/(__version__\s*=\s*['"])[^'"]+(['"])/, `$1${v}$2`),
+  },
+  {
+    match:   /(?:^|\/)Cargo\.toml$/,
+    find:    /^version\s*=\s*"[^"]+"/m,
+    replace: (content, v) => content.replace(/^(version\s*=\s*)"[^"]+"/m, `$1"${v}"`),
+  },
+  {
+    match:   /\.gemspec$/,
+    find:    /\.version\s*=\s*(['"])[^'"]+\1/,
+    replace: (content, v) => content.replace(/(\.version\s*=\s*['"])[^'"]+(['"])/, `$1${v}$2`),
+  },
+];
+
+class VersionBumper {
+  /**
+   * @param {import('@octokit/core').Octokit} octokit
+   * @param {{ owner: string, repo: string }} repo
+   */
+  constructor(octokit, repo) {
+    this.octokit = octokit;
+    this.repo    = repo;
+  }
+
+  /**
+   * Bump the version string in each file on the given branch.
+   * Files that are missing or have no recognisable version pattern are skipped
+   * with a warning rather than failing the workflow.
+   *
+   * @param {string[]} filePaths  Repo-relative paths
+   * @param {string}   version    New semver string without prefix (e.g. "1.3.0")
+   * @param {string}   branch     Branch to commit onto
+   * @param {string}   tag        Full tag name used in the commit message
+   */
+  async bumpFiles(filePaths, version, branch, tag) {
+    for (const raw of filePaths) {
+      const filePath = raw.trim();
+      if (filePath) await this.bumpFile(filePath, version, branch, tag);
+    }
+  }
+
+  // ── Private ────────────────────────────────────────────────────────────────
+
+  async bumpFile(filePath, version, branch, tag) {
+    const detector = DETECTORS.find((d) => d.match.test(filePath));
+    if (!detector) {
+      warning(`bump_version_in_files: no version pattern known for "${filePath}" — skipping`);
+      return;
+    }
+
+    let content, sha;
+    try {
+      const { data } = await this.octokit.rest.repos.getContent({
+        owner: this.repo.owner,
+        repo:  this.repo.repo,
+        path:  filePath,
+        ref:   branch,
+      });
+      content = Buffer.from(data.content, 'base64').toString('utf8');
+      sha     = data.sha;
+    } catch (err) {
+      if (err.status === 404) {
+        warning(`bump_version_in_files: "${filePath}" not found on branch "${branch}" — skipping`);
+        return;
+      }
+      throw err;
+    }
+
+    if (!detector.find.test(content)) {
+      warning(`bump_version_in_files: no version string found in "${filePath}" — skipping`);
+      return;
+    }
+
+    const updated = detector.replace(content, version);
+    if (updated === content) {
+      info(`bump_version_in_files: "${filePath}" already at ${version} — no change`);
+      return;
+    }
+
+    await this.octokit.rest.repos.createOrUpdateFileContents({
+      owner:   this.repo.owner,
+      repo:    this.repo.repo,
+      path:    filePath,
+      message: `chore(release): bump version to ${tag} in ${filePath}`,
+      content: Buffer.from(updated).toString('base64'),
+      sha,
+      branch,
+    });
+
+    info(`bump_version_in_files: "${filePath}" → ${version}`);
+  }
+}
+
 ;// CONCATENATED MODULE: ./src/index.js
+
 
 
 
@@ -42418,6 +42541,11 @@ async function run() {
       discussionCategory: getInput('discussion_category') || 'Announcements',
       // PR comments
       commentOnPRs: getBooleanInput('comment_on_prs'),
+      // Version file bumping
+      bumpVersionInFiles: getInput('bump_version_in_files')
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean),
     };
 
     const prManager     = new PrManager(octokit, repo);
@@ -42565,7 +42693,7 @@ async function run() {
     // ── 11. Open smart-changelog PR (auto_release: true only) ─────────────────
     // When auto_release: false, CHANGELOG.md is already in main via the smart-release PR.
     if (inputs.autoRelease) {
-      await openChangelogPR({ octokit, repo, tag, changelogMd, sha, prManager, defaultBranch });
+      await openChangelogPR({ octokit, repo, inputs, tag, version, changelogMd, sha, prManager, defaultBranch });
     }
   } catch (err) {
     setFailed(err.message);
@@ -42581,7 +42709,7 @@ async function run() {
 async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBranch }) {
   // Resolve next version (tag computed but NOT created yet)
   const versionManager = new VersionManager(octokit, repo, inputs);
-  const { tag, previousTag } = await versionManager.resolve();
+  const { tag, version, previousTag } = await versionManager.resolve();
   info(`Pending release: ${tag}  |  previous: ${previousTag ?? '(none)'}`);
 
   // Generate changelog
@@ -42603,7 +42731,7 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
   const newContent = changelogFile.prepend(baseContent, entry);
 
   // Reset smart-release branch to current main HEAD (keeps PR cleanly mergeable),
-  // then commit the updated CHANGELOG.md on top of it.
+  // then commit the updated CHANGELOG.md and any version file bumps on top of it.
   await prManager.resetOrCreateBranch(RELEASE_BRANCH, sha);
   await changelogFile.write(
     RELEASE_BRANCH,
@@ -42611,6 +42739,11 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
     fileSha,
     `chore(release): update CHANGELOG.md for ${tag}`,
   );
+
+  if (inputs.bumpVersionInFiles.length > 0) {
+    const versionBumper = new VersionBumper(octokit, repo);
+    await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, RELEASE_BRANCH, tag);
+  }
 
   // Open or update the Release PR (label applied only on creation)
   const pr = await prManager.openOrUpdatePR(
@@ -42628,9 +42761,9 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
 // ── auto_release: true — open smart-changelog PR after release ───────────────
 /**
  * After a release is published, open or update the smart-changelog PR so that
- * CHANGELOG.md in the repository stays up to date.
+ * CHANGELOG.md (and any version files) in the repository stay up to date.
  */
-async function openChangelogPR({ octokit, repo, tag, changelogMd, sha, prManager, defaultBranch }) {
+async function openChangelogPR({ octokit, repo, inputs, tag, version, changelogMd, sha, prManager, defaultBranch }) {
   const changelogFile = new ChangelogFile(octokit, repo);
 
   // If a changelog PR is already open, read accumulated content from that branch
@@ -42653,11 +42786,25 @@ async function openChangelogPR({ octokit, repo, tag, changelogMd, sha, prManager
     `chore(changelog): update CHANGELOG.md for ${tag}`,
   );
 
+  if (inputs.bumpVersionInFiles.length > 0) {
+    const versionBumper = new VersionBumper(octokit, repo);
+    await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, CHANGELOG_BRANCH, tag);
+  }
+
+  // Accumulate all release entries so the PR description always shows every
+  // release included since the last time this PR was merged, not just the latest.
+  const prevEntries = existingPR ? extractPREntries(existingPR.body) : [];
+  const allEntries  = [...prevEntries, { tag, markdown: changelogMd }];
+
+  const prTitle = allEntries.length === 1
+    ? `📋 Update CHANGELOG.md for ${tag}`
+    : `📋 Update CHANGELOG.md (${allEntries.length} releases)`;
+
   const pr = await prManager.openOrUpdatePR(
     CHANGELOG_BRANCH,
     defaultBranch,
-    `📋 Update CHANGELOG.md for ${tag}`,
-    buildChangelogPRBody(tag, changelogMd),
+    prTitle,
+    buildChangelogPRBody(allEntries),
   );
 
   setOutput('pr_url', pr.html_url);
@@ -42684,24 +42831,61 @@ function buildReleasePRBody(tag, changelogMd) {
   ].join('\n');
 }
 
-function buildChangelogPRBody(tag, changelogMd) {
-  const changes = changelogMd?.trim()
-    ? `### Changes in ${tag}\n\n${changelogMd}`
-    : '_No notable changes._';
+// Hidden marker used to persist accumulated release entries across PR body updates.
+const PR_ENTRIES_MARKER = '<!-- smart-gh-release-entries:';
+
+/**
+ * Build the changelog PR body showing ALL accumulated releases since the last merge.
+ *
+ * @param {{ tag: string, markdown: string|null }[]} entries  Oldest-first list of releases
+ */
+function buildChangelogPRBody(entries) {
+  // Show newest release first in the PR body
+  const sections = [...entries].reverse().map(({ tag, markdown }) =>
+    markdown?.trim()
+      ? `### Changes in ${tag}\n\n${markdown}`
+      : `### ${tag}\n\n_No notable changes._`,
+  );
+
+  const heading = entries.length === 1
+    ? `## 📋 Changelog update for ${entries[0].tag}`
+    : `## 📋 Changelog update (${entries.length} releases: ${[...entries].reverse().map((e) => e.tag).join(', ')})`;
 
   return [
-    `## 📋 Changelog update for ${tag}`,
+    heading,
     '',
-    `> The **${tag}** GitHub Release has been published.`,
+    '> GitHub Release(s) have been published.',
     '> Merge this PR to update `CHANGELOG.md` in your repository.',
     '>',
     '> ⚠️ If your branch has required reviews or status checks, merge this PR manually.',
     '',
-    changes,
+    sections.join('\n\n---\n\n'),
     '',
     '---',
     '_Auto-generated by [smart-gh-release](https://github.com/your-org/smart-gh-release)_',
+    // Store entries as a hidden comment so future updates can accumulate correctly
+    `${PR_ENTRIES_MARKER}${JSON.stringify(entries)} -->`,
   ].join('\n');
+}
+
+/**
+ * Extract the accumulated release entries embedded in a PR body by buildChangelogPRBody.
+ * Returns an empty array when the marker is absent (e.g. PR created by an older version).
+ *
+ * @param {string|null|undefined} prBody
+ * @returns {{ tag: string, markdown: string|null }[]}
+ */
+function extractPREntries(prBody) {
+  if (!prBody) return [];
+  const start = prBody.indexOf(PR_ENTRIES_MARKER);
+  if (start === -1) return [];
+  const end = prBody.indexOf(' -->', start);
+  if (end === -1) return [];
+  try {
+    return JSON.parse(prBody.slice(start + PR_ENTRIES_MARKER.length, end));
+  } catch {
+    return [];
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

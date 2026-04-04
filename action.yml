@@ -126,6 +126,27 @@ inputs:
       for ensuring all platform binaries are present before publishing.
     required: false
 
+  # ── Version file bumping ───────────────────────────────────────────────────
+  bump_version_in_files:
+    description: >
+      Newline- or comma-separated list of repo-relative file paths whose
+      version string should be bumped to match the new release version.
+      The version is committed onto the same branch as CHANGELOG.md so it
+      lands in the default branch together when the PR is merged.
+
+      Supported files and the pattern that is updated:
+        package.json          "version": "x.y.z"
+        pyproject.toml        version = "x.y.z"
+        setup.cfg             version = x.y.z
+        setup.py              version="x.y.z"
+        __init__.py /
+        _version.py /
+        version.py            __version__ = "x.y.z"
+        Cargo.toml            version = "x.y.z"
+        *.gemspec             .version = "x.y.z"
+    required: false
+    default: ''
+
   # ── Behaviour ──────────────────────────────────────────────────────────────
   update_existing:
     description: >

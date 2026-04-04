@@ -10,6 +10,7 @@ import { createReleaseDiscussion } from './discussions.js';
 import { writeJobSummary }       from './summary.js';
 import { ChangelogFile }         from './changelog-file.js';
 import { PrManager }             from './pr-manager.js';
+import { VersionBumper }         from './version-bumper.js';
 
 // Branch names used for changelog PRs
 const RELEASE_BRANCH   = 'smart-release';
@@ -55,6 +56,11 @@ async function run() {
       discussionCategory: core.getInput('discussion_category') || 'Announcements',
       // PR comments
       commentOnPRs: core.getBooleanInput('comment_on_prs'),
+      // Version file bumping
+      bumpVersionInFiles: core.getInput('bump_version_in_files')
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean),
     };
 
     const prManager     = new PrManager(octokit, repo);
@@ -202,7 +208,7 @@ async function run() {
     // ── 11. Open smart-changelog PR (auto_release: true only) ─────────────────
     // When auto_release: false, CHANGELOG.md is already in main via the smart-release PR.
     if (inputs.autoRelease) {
-      await openChangelogPR({ octokit, repo, tag, changelogMd, sha, prManager, defaultBranch });
+      await openChangelogPR({ octokit, repo, inputs, tag, version, changelogMd, sha, prManager, defaultBranch });
     }
   } catch (err) {
     core.setFailed(err.message);
@@ -218,7 +224,7 @@ async function run() {
 async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBranch }) {
   // Resolve next version (tag computed but NOT created yet)
   const versionManager = new VersionManager(octokit, repo, inputs);
-  const { tag, previousTag } = await versionManager.resolve();
+  const { tag, version, previousTag } = await versionManager.resolve();
   core.info(`Pending release: ${tag}  |  previous: ${previousTag ?? '(none)'}`);
 
   // Generate changelog
@@ -240,7 +246,7 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
   const newContent = changelogFile.prepend(baseContent, entry);
 
   // Reset smart-release branch to current main HEAD (keeps PR cleanly mergeable),
-  // then commit the updated CHANGELOG.md on top of it.
+  // then commit the updated CHANGELOG.md and any version file bumps on top of it.
   await prManager.resetOrCreateBranch(RELEASE_BRANCH, sha);
   await changelogFile.write(
     RELEASE_BRANCH,
@@ -248,6 +254,11 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
     fileSha,
     `chore(release): update CHANGELOG.md for ${tag}`,
   );
+
+  if (inputs.bumpVersionInFiles.length > 0) {
+    const versionBumper = new VersionBumper(octokit, repo);
+    await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, RELEASE_BRANCH, tag);
+  }
 
   // Open or update the Release PR (label applied only on creation)
   const pr = await prManager.openOrUpdatePR(
@@ -265,9 +276,9 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
 // ── auto_release: true — open smart-changelog PR after release ───────────────
 /**
  * After a release is published, open or update the smart-changelog PR so that
- * CHANGELOG.md in the repository stays up to date.
+ * CHANGELOG.md (and any version files) in the repository stay up to date.
  */
-async function openChangelogPR({ octokit, repo, tag, changelogMd, sha, prManager, defaultBranch }) {
+async function openChangelogPR({ octokit, repo, inputs, tag, version, changelogMd, sha, prManager, defaultBranch }) {
   const changelogFile = new ChangelogFile(octokit, repo);
 
   // If a changelog PR is already open, read accumulated content from that branch
@@ -290,11 +301,25 @@ async function openChangelogPR({ octokit, repo, tag, changelogMd, sha, prManager
     `chore(changelog): update CHANGELOG.md for ${tag}`,
   );
 
+  if (inputs.bumpVersionInFiles.length > 0) {
+    const versionBumper = new VersionBumper(octokit, repo);
+    await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, CHANGELOG_BRANCH, tag);
+  }
+
+  // Accumulate all release entries so the PR description always shows every
+  // release included since the last time this PR was merged, not just the latest.
+  const prevEntries = existingPR ? extractPREntries(existingPR.body) : [];
+  const allEntries  = [...prevEntries, { tag, markdown: changelogMd }];
+
+  const prTitle = allEntries.length === 1
+    ? `📋 Update CHANGELOG.md for ${tag}`
+    : `📋 Update CHANGELOG.md (${allEntries.length} releases)`;
+
   const pr = await prManager.openOrUpdatePR(
     CHANGELOG_BRANCH,
     defaultBranch,
-    `📋 Update CHANGELOG.md for ${tag}`,
-    buildChangelogPRBody(tag, changelogMd),
+    prTitle,
+    buildChangelogPRBody(allEntries),
   );
 
   core.setOutput('pr_url', pr.html_url);
@@ -321,24 +346,61 @@ function buildReleasePRBody(tag, changelogMd) {
   ].join('\n');
 }
 
-function buildChangelogPRBody(tag, changelogMd) {
-  const changes = changelogMd?.trim()
-    ? `### Changes in ${tag}\n\n${changelogMd}`
-    : '_No notable changes._';
+// Hidden marker used to persist accumulated release entries across PR body updates.
+const PR_ENTRIES_MARKER = '<!-- smart-gh-release-entries:';
+
+/**
+ * Build the changelog PR body showing ALL accumulated releases since the last merge.
+ *
+ * @param {{ tag: string, markdown: string|null }[]} entries  Oldest-first list of releases
+ */
+function buildChangelogPRBody(entries) {
+  // Show newest release first in the PR body
+  const sections = [...entries].reverse().map(({ tag, markdown }) =>
+    markdown?.trim()
+      ? `### Changes in ${tag}\n\n${markdown}`
+      : `### ${tag}\n\n_No notable changes._`,
+  );
+
+  const heading = entries.length === 1
+    ? `## 📋 Changelog update for ${entries[0].tag}`
+    : `## 📋 Changelog update (${entries.length} releases: ${[...entries].reverse().map((e) => e.tag).join(', ')})`;
 
   return [
-    `## 📋 Changelog update for ${tag}`,
+    heading,
     '',
-    `> The **${tag}** GitHub Release has been published.`,
+    '> GitHub Release(s) have been published.',
     '> Merge this PR to update `CHANGELOG.md` in your repository.',
     '>',
     '> ⚠️ If your branch has required reviews or status checks, merge this PR manually.',
     '',
-    changes,
+    sections.join('\n\n---\n\n'),
     '',
     '---',
     '_Auto-generated by [smart-gh-release](https://github.com/your-org/smart-gh-release)_',
+    // Store entries as a hidden comment so future updates can accumulate correctly
+    `${PR_ENTRIES_MARKER}${JSON.stringify(entries)} -->`,
   ].join('\n');
+}
+
+/**
+ * Extract the accumulated release entries embedded in a PR body by buildChangelogPRBody.
+ * Returns an empty array when the marker is absent (e.g. PR created by an older version).
+ *
+ * @param {string|null|undefined} prBody
+ * @returns {{ tag: string, markdown: string|null }[]}
+ */
+function extractPREntries(prBody) {
+  if (!prBody) return [];
+  const start = prBody.indexOf(PR_ENTRIES_MARKER);
+  if (start === -1) return [];
+  const end = prBody.indexOf(' -->', start);
+  if (end === -1) return [];
+  try {
+    return JSON.parse(prBody.slice(start + PR_ENTRIES_MARKER.length, end));
+  } catch {
+    return [];
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
