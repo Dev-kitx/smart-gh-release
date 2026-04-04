@@ -11,6 +11,13 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.4.0] - 2026-04-04
+
+### ✨ Features
+
+- add bump_version_in_files and fix changelog PR body accumulation (#22) ([c6289c2](https://github.com/Dev-kitx/smart-gh-release/commit/c6289c2ff42c49191a4b3d1cf8d1625d3cbee549)) by @aakashbasa
+
 ## [v0.3.9] - 2026-04-03
 
 ### 📌 Other Changes
