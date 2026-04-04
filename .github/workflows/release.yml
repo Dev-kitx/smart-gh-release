@@ -102,6 +102,8 @@ jobs:
           auto_version: true
           generate_checksums: true
           include_contributors: true
+          bump_version_in_files: |
+            package.json
 
       - name: Summary
         run: |
