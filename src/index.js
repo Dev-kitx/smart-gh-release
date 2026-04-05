@@ -11,6 +11,7 @@ import { writeJobSummary }       from './summary.js';
 import { ChangelogFile }         from './changelog-file.js';
 import { PrManager }             from './pr-manager.js';
 import { VersionBumper }         from './version-bumper.js';
+import { BadgeGenerator }        from './badge.js';
 
 // Branch names used for changelog PRs
 const RELEASE_BRANCH   = 'smart-release';
@@ -61,6 +62,8 @@ async function run() {
         .split(/[\n,]/)
         .map((s) => s.trim())
         .filter(Boolean),
+      // Badge
+      generateBadge: core.getBooleanInput('generate_badge'),
     };
 
     const prManager     = new PrManager(octokit, repo);
@@ -193,6 +196,8 @@ async function run() {
     core.setOutput('assets_uploaded', String(uploadedCount));
     core.setOutput('changelog',       changelogMd);
     core.setOutput('bump_level',      bumpLevel);
+    core.setOutput('badge_url',       BadgeGenerator.badgeUrl(repo.owner, repo.repo, defaultBranch));
+    core.setOutput('badge_markdown',  BadgeGenerator.badgeMarkdown(repo.owner, repo.repo, defaultBranch));
 
     // ── 10. Write Job Summary ─────────────────────────────────────────────────
     await writeJobSummary({
@@ -260,6 +265,12 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
     await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, RELEASE_BRANCH, tag);
   }
 
+  if (inputs.generateBadge) {
+    const isPrerelease = inputs.prerelease || Boolean(inputs.prereleaseChannel);
+    const badge = new BadgeGenerator(octokit, repo);
+    await badge.generate(tag, isPrerelease, RELEASE_BRANCH);
+  }
+
   // Open or update the Release PR (label applied only on creation)
   const pr = await prManager.openOrUpdatePR(
     RELEASE_BRANCH,
@@ -304,6 +315,12 @@ async function openChangelogPR({ octokit, repo, inputs, tag, version, changelogM
   if (inputs.bumpVersionInFiles.length > 0) {
     const versionBumper = new VersionBumper(octokit, repo);
     await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, CHANGELOG_BRANCH, tag);
+  }
+
+  if (inputs.generateBadge) {
+    const isPrerelease = inputs.prerelease || Boolean(inputs.prereleaseChannel);
+    const badge = new BadgeGenerator(octokit, repo);
+    await badge.generate(tag, isPrerelease, CHANGELOG_BRANCH);
   }
 
   // Accumulate all release entries so the PR description always shows every

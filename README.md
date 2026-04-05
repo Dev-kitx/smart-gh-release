@@ -21,6 +21,7 @@ A feature-rich GitHub Release action that goes beyond what any single marketplac
 | **PR release comments** | After a release is published, automatically posts a comment on every merged PR that was included in the release, linking back to the release URL. |
 | **Rich Job Summary** | A formatted table appears in the GitHub Actions UI showing version, bump level, asset count, contributor count, and the full changelog — no log digging needed. |
 | **Update-or-create** | Set `update_existing: true` to patch an existing release instead of failing. Useful for draft-then-publish workflows. |
+| **Release badge** | Commits a `.github/badges/release.json` shields.io endpoint file to the repo so you can display a live version badge in your README with no third-party service. |
 
 ---
 
@@ -139,6 +140,12 @@ With `auto_version: true` you never write a tag or bump a version number manuall
 | `fail_on_unmatched_files` | No | `false` | Fail if a glob in `files` matches nothing. |
 | `required_assets` | No | — | Newline-separated globs that **must** match a resolved file or the release is aborted. |
 
+### Release Badge
+
+| Input | Required | Default | Description |
+|---|---|---|---|
+| `generate_badge` | No | `false` | Commit a shields.io endpoint badge JSON to `.github/badges/release.json` on the PR branch. See [Release Badge](#release-badge). |
+
 ### Version File Bumping
 
 | Input | Required | Default | Description |
@@ -179,6 +186,8 @@ With `auto_version: true` you never write a tag or bump a version number manuall
 | `assets_uploaded` | Number of assets successfully uploaded. |
 | `changelog` | The full generated changelog in Markdown. |
 | `bump_level` | Detected version bump: `major`, `minor`, or `patch`. |
+| `badge_url` | shields.io endpoint URL for the release badge (always set, regardless of `generate_badge`). |
+| `badge_markdown` | Ready-to-paste Markdown for embedding the release badge in a README (always set). |
 | `pr_url` | URL of the opened or updated pull request (`smart-changelog` or `smart-release`). |
 
 ### Using Outputs
@@ -445,6 +454,41 @@ jobs:
 
 ---
 
+## Release Badge
+
+Enable `generate_badge: true` and the action commits a `.github/badges/release.json` file to the same PR branch as `CHANGELOG.md`. Once that PR is merged, the file is served over `raw.githubusercontent.com` as a live [shields.io endpoint badge](https://shields.io/badges/endpoint-badge) that always reflects the latest release version — no third-party service or token required.
+
+```yaml
+- uses: your-org/smart-gh-release@v1
+  with:
+    auto_version: true
+    generate_badge: true
+```
+
+Then grab the `badge_markdown` output and paste it into your README:
+
+```yaml
+- name: Update README badge
+  run: echo "${{ steps.release.outputs.badge_markdown }}"
+```
+
+Or hardcode it manually using the `badge_url` output pattern:
+
+```markdown
+[![Release](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2F{owner}%2F{repo}%2Fmain%2F.github%2Fbadges%2Frelease.json)](https://github.com/{owner}/{repo}/releases/latest)
+```
+
+**Badge appearance:**
+
+| Release type | Color |
+|---|---|
+| Stable (`v1.3.0`) | ![blue](https://img.shields.io/badge/release-v1.3.0-blue) |
+| Pre-release (`v1.3.0-beta.1`) | ![orange](https://img.shields.io/badge/release-v1.3.0--beta.1-orange) |
+
+The badge lands in the default branch when the PR is merged — same timing as `CHANGELOG.md` and version files. See [Auto Release Mode](#auto-release-mode) for the timing distinction between modes.
+
+---
+
 ## Bumping Version Files
 
 Use `bump_version_in_files` to keep your version files in sync with the release tag. The action commits the bumped files onto the same PR branch as `CHANGELOG.md`, so everything lands in the default branch together when the PR is merged.
@@ -581,6 +625,7 @@ gh-release-action/
     ├── index.js                    # Main orchestrator
     ├── version-manager.js          # Semver resolution & auto-bump
     ├── version-bumper.js           # Version file detection & replacement
+    ├── badge.js                    # shields.io endpoint badge generation
     ├── changelog-generator.js      # Conventional commit parsing → Markdown
     ├── changelog-file.js           # CHANGELOG.md read/write via GitHub API
     ├── asset-manager.js            # Glob resolution, upload, checksums
@@ -596,6 +641,7 @@ gh-release-action/
         ├── changelog-file.test.js
         ├── version-manager.test.js
         ├── version-bumper.test.js
+        ├── badge.test.js
         ├── asset-manager.test.js
         ├── release-manager.test.js
         ├── pr-manager.test.js

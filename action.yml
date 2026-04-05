@@ -181,6 +181,21 @@ inputs:
     required: false
     default: 'true'
 
+  # ── Release badge ─────────────────────────────────────────────────────────
+  generate_badge:
+    description: >
+      Generate a shields.io endpoint badge file at
+      `.github/badges/release.json` and commit it onto the same PR branch as
+      CHANGELOG.md. Once merged, the file can be served via raw.githubusercontent.com
+      as a live dynamic badge that always reflects the latest release.
+
+      Add the following to your README to display it:
+        [![Release](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2F{owner}%2F{repo}%2Fmain%2F.github%2Fbadges%2Frelease.json)](https://github.com/{owner}/{repo}/releases/latest)
+
+      Use the `badge_markdown` output for a ready-to-paste version.
+    required: false
+    default: 'false'
+
   # ── GitHub Discussions ─────────────────────────────────────────────────────
   create_discussion:
     description: >
@@ -211,6 +226,14 @@ outputs:
     description: 'The full generated changelog in Markdown.'
   bump_level:
     description: 'Detected version bump: major | minor | patch.'
+  badge_url:
+    description: >
+      shields.io endpoint URL for the release badge
+      (set regardless of whether generate_badge is enabled).
+  badge_markdown:
+    description: >
+      Ready-to-paste Markdown for embedding the release badge in a README
+      (set regardless of whether generate_badge is enabled).
   pr_url:
     description: >
       HTML URL of the opened or updated pull request.
