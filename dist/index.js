@@ -42482,7 +42482,99 @@ class VersionBumper {
   }
 }
 
+;// CONCATENATED MODULE: ./src/badge.js
+
+
+const BADGE_PATH = '.github/badges/release.json';
+
+class BadgeGenerator {
+  /**
+   * @param {import('@octokit/core').Octokit} octokit
+   * @param {{ owner: string, repo: string }} repo
+   */
+  constructor(octokit, repo) {
+    this.octokit = octokit;
+    this.repo    = repo;
+  }
+
+  /**
+   * Write the shields.io endpoint JSON badge for the given tag onto the branch.
+   * Creates the file if it does not exist; updates it if it does.
+   *
+   * @param {string}  tag          Full release tag (e.g. "v1.3.0")
+   * @param {boolean} isPrerelease Stable → blue, pre-release → orange
+   * @param {string}  branch       Branch to commit onto
+   */
+  async generate(tag, isPrerelease, branch) {
+    const payload = {
+      schemaVersion: 1,
+      label:         'release',
+      message:       tag,
+      color:         isPrerelease ? 'orange' : 'blue',
+    };
+
+    const content = JSON.stringify(payload, null, 2) + '\n';
+
+    // Fetch existing file SHA — required by the GitHub API when updating
+    let existingSha;
+    try {
+      const { data } = await this.octokit.rest.repos.getContent({
+        owner: this.repo.owner,
+        repo:  this.repo.repo,
+        path:  BADGE_PATH,
+        ref:   branch,
+      });
+      existingSha = data.sha;
+    } catch (err) {
+      if (err.status !== 404) throw err;
+      // 404 = file does not exist yet — create it fresh
+    }
+
+    await this.octokit.rest.repos.createOrUpdateFileContents({
+      owner:   this.repo.owner,
+      repo:    this.repo.repo,
+      path:    BADGE_PATH,
+      message: `chore(release): update release badge to ${tag}`,
+      content: Buffer.from(content).toString('base64'),
+      ...(existingSha && { sha: existingSha }),
+      branch,
+    });
+
+    info(`Release badge updated → ${BADGE_PATH}`);
+  }
+
+  // ── Static helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * Return the shields.io endpoint URL for the badge JSON served from this repo.
+   *
+   * @param {string} owner
+   * @param {string} repo
+   * @param {string} [defaultBranch='main']
+   * @returns {string}
+   */
+  static badgeUrl(owner, repo, defaultBranch = 'main') {
+    const raw = `https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/${BADGE_PATH}`;
+    return `https://img.shields.io/endpoint?url=${encodeURIComponent(raw)}`;
+  }
+
+  /**
+   * Return ready-to-paste Markdown for the release badge.
+   *
+   * @param {string} owner
+   * @param {string} repo
+   * @param {string} [defaultBranch='main']
+   * @returns {string}
+   */
+  static badgeMarkdown(owner, repo, defaultBranch = 'main') {
+    const badgeUrl   = BadgeGenerator.badgeUrl(owner, repo, defaultBranch);
+    const releaseUrl = `https://github.com/${owner}/${repo}/releases/latest`;
+    return `[![Release](${badgeUrl})](${releaseUrl})`;
+  }
+}
+
 ;// CONCATENATED MODULE: ./src/index.js
+
 
 
 
@@ -42546,6 +42638,8 @@ async function run() {
         .split(/[\n,]/)
         .map((s) => s.trim())
         .filter(Boolean),
+      // Badge
+      generateBadge: getBooleanInput('generate_badge'),
     };
 
     const prManager     = new PrManager(octokit, repo);
@@ -42678,6 +42772,8 @@ async function run() {
     setOutput('assets_uploaded', String(uploadedCount));
     setOutput('changelog',       changelogMd);
     setOutput('bump_level',      bumpLevel);
+    setOutput('badge_url',       BadgeGenerator.badgeUrl(repo.owner, repo.repo, defaultBranch));
+    setOutput('badge_markdown',  BadgeGenerator.badgeMarkdown(repo.owner, repo.repo, defaultBranch));
 
     // ── 10. Write Job Summary ─────────────────────────────────────────────────
     await writeJobSummary({
@@ -42745,6 +42841,12 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
     await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, RELEASE_BRANCH, tag);
   }
 
+  if (inputs.generateBadge) {
+    const isPrerelease = inputs.prerelease || Boolean(inputs.prereleaseChannel);
+    const badge = new BadgeGenerator(octokit, repo);
+    await badge.generate(tag, isPrerelease, RELEASE_BRANCH);
+  }
+
   // Open or update the Release PR (label applied only on creation)
   const pr = await prManager.openOrUpdatePR(
     RELEASE_BRANCH,
@@ -42789,6 +42891,12 @@ async function openChangelogPR({ octokit, repo, inputs, tag, version, changelogM
   if (inputs.bumpVersionInFiles.length > 0) {
     const versionBumper = new VersionBumper(octokit, repo);
     await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, CHANGELOG_BRANCH, tag);
+  }
+
+  if (inputs.generateBadge) {
+    const isPrerelease = inputs.prerelease || Boolean(inputs.prereleaseChannel);
+    const badge = new BadgeGenerator(octokit, repo);
+    await badge.generate(tag, isPrerelease, CHANGELOG_BRANCH);
   }
 
   // Accumulate all release entries so the PR description always shows every
