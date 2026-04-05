@@ -12,6 +12,13 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.5.0] - 2026-04-05
+
+### ✨ Features
+
+- generate release bridge (#24) ([d2c2717](https://github.com/Dev-kitx/smart-gh-release/commit/d2c2717493c8c3b6a0d8d8124998699ac9447369)) by @aakashbasa
+
 ## [v0.4.0] - 2026-04-04
 
 ### ✨ Features
