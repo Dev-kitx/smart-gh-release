@@ -1,5 +1,7 @@
 # Smart GitHub Release Action
 
+[![Release](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FDev-kitx%2Fsmart-gh-release%2Fmain%2F.github%2Fbadges%2Frelease.json)](https://github.com/Dev-kitx/smart-gh-release/releases/latest)
+
 [![codecov](https://codecov.io/gh/Dev-kitx/smart-gh-release/graph/badge.svg?token=MH8WESXRR8)](https://codecov.io/gh/Dev-kitx/smart-gh-release)
 
 A feature-rich GitHub Release action that goes beyond what any single marketplace action offers — auto semantic versioning, smart grouped changelogs, SHA-256 checksums, contributor credits, pre-release channels, required-asset validation, GitHub Discussions, and rich Job Summaries, all in one action.
@@ -475,7 +477,7 @@ Then grab the `badge_markdown` output and paste it into your README:
 Or hardcode it manually using the `badge_url` output pattern:
 
 ```markdown
-[![Release](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2F{owner}%2F{repo}%2Fmain%2F.github%2Fbadges%2Frelease.json)](https://github.com/{owner}/{repo}/releases/latest)
+[![Release](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FDev-kitx%2Fsmart-gh-release%2Fmain%2F.github%2Fbadges%2Frelease.json)](https://github.com/Dev-kitx/smart-gh-release/releases/latest)
 ```
 
 **Badge appearance:**
