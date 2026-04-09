@@ -13,6 +13,11 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.5.1] - 2026-04-09
+
+_No notable changes._
+
 ## [v0.5.0] - 2026-04-05
 
 ### ✨ Features
