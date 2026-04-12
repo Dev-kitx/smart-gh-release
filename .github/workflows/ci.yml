@@ -6,8 +6,11 @@ on:
     paths-ignore:
       - 'README.md'
       - 'CHANGELOG.md'
+      - 'package.json'       # version bump from smart-changelog PR — safe to skip
       - 'codecov.yml'
       - 'dist/**'
+      - '.github/badges/**'
+
   pull_request:
     branches: [main]
     paths-ignore:
@@ -15,6 +18,8 @@ on:
       - 'CHANGELOG.md'
       - 'codecov.yml'
       - 'dist/**'
+      - '.github/badges/**'
+      # package.json intentionally absent — dependency changes in PRs must trigger CI
 
 jobs:
   test:

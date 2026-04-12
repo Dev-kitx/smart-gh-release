@@ -7,11 +7,12 @@ import { ChangelogGenerator }    from './changelog-generator.js';
 import { AssetManager }          from './asset-manager.js';
 import { getContributors }       from './contributors.js';
 import { createReleaseDiscussion } from './discussions.js';
-import { writeJobSummary }       from './summary.js';
+import { writeJobSummary, writeMajorTagSummary } from './summary.js';
 import { ChangelogFile }         from './changelog-file.js';
 import { PrManager }             from './pr-manager.js';
 import { VersionBumper }         from './version-bumper.js';
 import { BadgeGenerator }        from './badge.js';
+import { MajorTag }              from './major-tag.js';
 
 // Branch names used for changelog PRs
 const RELEASE_BRANCH   = 'smart-release';
@@ -64,7 +65,31 @@ async function run() {
         .filter(Boolean),
       // Badge
       generateBadge: core.getBooleanInput('generate_badge'),
+      // Major tag
+      publishMajorTag: core.getBooleanInput('publish_major_tag'),
+      majorTagOnly:    core.getBooleanInput('major_tag_only'),
+      // Behaviour
+      skipIfNoCommits: core.getBooleanInput('skip_if_no_commits'),
+      dryRun:          core.getBooleanInput('dry_run'),
     };
+
+    // ── Route: major_tag_only ────────────────────────────────────────────────
+    // Used in a second job (protected by a GitHub Environment) that only needs
+    // to publish the floating major tag — skips the full release flow entirely.
+    if (inputs.majorTagOnly) {
+      if (!inputs.tag) {
+        core.setFailed('major_tag_only requires the `tag` input to be set (e.g. tag: v1.2.3)');
+        return;
+      }
+      core.info(`major_tag_only — publishing floating major tag for ${inputs.tag}`);
+      const mt        = new MajorTag(octokit, repo);
+      const commitSha = await mt.resolveTagSha(inputs.tag);
+      const majorTag  = await mt.publish(inputs.tag, commitSha);
+      if (majorTag) await writeMajorTagSummary({ tag: inputs.tag, majorTag });
+      core.setOutput('major_tag', majorTag ?? '');
+      core.setOutput('tag_name',  inputs.tag);
+      return;
+    }
 
     const prManager     = new PrManager(octokit, repo);
     const defaultBranch = await prManager.getDefaultBranch();
@@ -109,6 +134,12 @@ async function run() {
 
     core.info(`Changelog: ${totalCommits} commit(s), bump level: ${bumpLevel}`);
 
+    if (inputs.skipIfNoCommits && totalCommits === 0) {
+      core.info('No commits since last tag — skipping release (skip_if_no_commits: true).');
+      core.setOutput('skipped', 'true');
+      return;
+    }
+
     // ── 3. Gather contributors ───────────────────────────────────────────────
     let contributorsSection = '';
     let contributorCount    = 0;
@@ -144,46 +175,83 @@ async function run() {
     }
 
     // ── 6. Create or update the release ──────────────────────────────────────
-    const releaseManager   = new ReleaseManager(octokit, repo, inputs);
-    const { data: release } = await releaseManager.createOrUpdate({
-      tag,
-      name:            inputs.name || tag,
-      body:            releaseBody,
-      draft:           inputs.draft,
-      prerelease:      inputs.prerelease || Boolean(inputs.prereleaseChannel),
-      targetCommitish: inputs.targetCommitish,
-    });
+    let release;
+    if (inputs.dryRun) {
+      core.info(`[DRY RUN] Would create release ${tag}`);
+      release = {
+        id:         0,
+        html_url:   `https://github.com/${repo.owner}/${repo.repo}/releases/tag/${tag}`,
+        upload_url: '',
+        tag_name:   tag,
+        draft:      inputs.draft,
+        prerelease: inputs.prerelease || Boolean(inputs.prereleaseChannel),
+      };
+    } else {
+      const releaseManager   = new ReleaseManager(octokit, repo, inputs);
+      const { data }         = await releaseManager.createOrUpdate({
+        tag,
+        name:            inputs.name || tag,
+        body:            releaseBody,
+        draft:           inputs.draft,
+        prerelease:      inputs.prerelease || Boolean(inputs.prereleaseChannel),
+        targetCommitish: inputs.targetCommitish,
+      });
+      release = data;
+      core.info(`Release URL: ${release.html_url}`);
+    }
 
-    core.info(`Release URL: ${release.html_url}`);
+    // ── 6.5. Publish floating major tag (optional) ────────────────────────────
+    let majorTag = '';
+    if (inputs.publishMajorTag) {
+      if (inputs.dryRun) {
+        majorTag = MajorTag.majorTagFor(tag) ?? '';
+        core.info(`[DRY RUN] Would update floating tag ${majorTag} → ${tag}`);
+      } else {
+        const majorTagPublisher = new MajorTag(octokit, repo);
+        majorTag = (await majorTagPublisher.publish(tag, sha)) ?? '';
+      }
+    }
 
     // ── 7. Upload assets ──────────────────────────────────────────────────────
     let uploadedCount = 0;
 
     if (assetFiles.length > 0) {
-      uploadedCount = await assetManager.uploadAssets(
-        octokit,
-        release.upload_url,
-        assetFiles,
-        inputs.generateChecksums,
-        inputs.checksumFile,
-      );
-      core.info(`Uploaded ${uploadedCount} asset(s).`);
+      if (inputs.dryRun) {
+        core.info(`[DRY RUN] Would upload ${assetFiles.length} asset(s)`);
+      } else {
+        uploadedCount = await assetManager.uploadAssets(
+          octokit,
+          release.upload_url,
+          assetFiles,
+          inputs.generateChecksums,
+          inputs.checksumFile,
+        );
+        core.info(`Uploaded ${uploadedCount} asset(s).`);
+      }
     }
 
     // ── 8. Create GitHub Discussion (optional) ────────────────────────────────
     if (inputs.createDiscussion) {
-      await createReleaseDiscussion(octokit, repo, release, inputs.discussionCategory);
+      if (inputs.dryRun) {
+        core.info(`[DRY RUN] Would create Discussion in "${inputs.discussionCategory}"`);
+      } else {
+        await createReleaseDiscussion(octokit, repo, release, inputs.discussionCategory);
+      }
     }
 
     // ── 8.5. Comment release info on merged PRs ───────────────────────────────
     if (inputs.commentOnPRs && commits.length > 0) {
-      const commitShas = commits.map((c) => c.sha);
-      const mergedPRs  = await prManager.findMergedPRsForCommits(commitShas, [
-        RELEASE_BRANCH,
-        CHANGELOG_BRANCH,
-      ]);
-      if (mergedPRs.length > 0) {
-        await prManager.commentReleaseOnPRs(mergedPRs, tag, release.html_url);
+      if (inputs.dryRun) {
+        core.info(`[DRY RUN] Would comment on PRs for ${commits.length} commit(s)`);
+      } else {
+        const commitShas = commits.map((c) => c.sha);
+        const mergedPRs  = await prManager.findMergedPRsForCommits(commitShas, [
+          RELEASE_BRANCH,
+          CHANGELOG_BRANCH,
+        ]);
+        if (mergedPRs.length > 0) {
+          await prManager.commentReleaseOnPRs(mergedPRs, tag, release.html_url);
+        }
       }
     }
 
@@ -196,8 +264,10 @@ async function run() {
     core.setOutput('assets_uploaded', String(uploadedCount));
     core.setOutput('changelog',       changelogMd);
     core.setOutput('bump_level',      bumpLevel);
+    core.setOutput('skipped',         'false');
     core.setOutput('badge_url',       BadgeGenerator.badgeUrl(repo.owner, repo.repo, defaultBranch));
     core.setOutput('badge_markdown',  BadgeGenerator.badgeMarkdown(repo.owner, repo.repo, defaultBranch));
+    core.setOutput('major_tag',       majorTag);
 
     // ── 10. Write Job Summary ─────────────────────────────────────────────────
     await writeJobSummary({
@@ -208,6 +278,8 @@ async function run() {
       uploadedCount,
       contributorCount,
       previousTag,
+      majorTag: majorTag || undefined,
+      dryRun:   inputs.dryRun,
     });
 
     // ── 11. Open smart-changelog PR (auto_release: true only) ─────────────────
@@ -249,6 +321,17 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
   const { content: baseContent, sha: fileSha } = await changelogFile.read(defaultBranch);
   const entry      = changelogFile.buildEntry(tag, changelogMd);
   const newContent = changelogFile.prepend(baseContent, entry);
+
+  if (inputs.dryRun) {
+    core.info(`[DRY RUN] Would reset branch ${RELEASE_BRANCH} and commit CHANGELOG.md for ${tag}`);
+    if (inputs.bumpVersionInFiles.length > 0)
+      core.info(`[DRY RUN] Would bump version in: ${inputs.bumpVersionInFiles.join(', ')}`);
+    if (inputs.generateBadge)
+      core.info(`[DRY RUN] Would update badge file`);
+    core.info(`[DRY RUN] Would open/update Release PR: 🚀 Release ${tag}`);
+    core.setOutput('tag_name', tag);
+    return;
+  }
 
   // Reset smart-release branch to current main HEAD (keeps PR cleanly mergeable),
   // then commit the updated CHANGELOG.md and any version file bumps on top of it.
@@ -304,23 +387,25 @@ async function openChangelogPR({ octokit, repo, inputs, tag, version, changelogM
   const entry      = changelogFile.buildEntry(tag, changelogMd);
   const newContent = changelogFile.prepend(baseContent, entry);
 
-  await prManager.resetOrCreateBranch(CHANGELOG_BRANCH, sha);
-  await changelogFile.write(
-    CHANGELOG_BRANCH,
-    newContent,
-    fileSha,
-    `chore(changelog): update CHANGELOG.md for ${tag}`,
-  );
+  if (!inputs.dryRun) {
+    await prManager.resetOrCreateBranch(CHANGELOG_BRANCH, sha);
+    await changelogFile.write(
+      CHANGELOG_BRANCH,
+      newContent,
+      fileSha,
+      `chore(changelog): update CHANGELOG.md for ${tag}`,
+    );
 
-  if (inputs.bumpVersionInFiles.length > 0) {
-    const versionBumper = new VersionBumper(octokit, repo);
-    await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, CHANGELOG_BRANCH, tag);
-  }
+    if (inputs.bumpVersionInFiles.length > 0) {
+      const versionBumper = new VersionBumper(octokit, repo);
+      await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, CHANGELOG_BRANCH, tag);
+    }
 
-  if (inputs.generateBadge) {
-    const isPrerelease = inputs.prerelease || Boolean(inputs.prereleaseChannel);
-    const badge = new BadgeGenerator(octokit, repo);
-    await badge.generate(tag, isPrerelease, CHANGELOG_BRANCH);
+    if (inputs.generateBadge) {
+      const isPrerelease = inputs.prerelease || Boolean(inputs.prereleaseChannel);
+      const badge = new BadgeGenerator(octokit, repo);
+      await badge.generate(tag, isPrerelease, CHANGELOG_BRANCH);
+    }
   }
 
   // Accumulate all release entries so the PR description always shows every
@@ -331,6 +416,11 @@ async function openChangelogPR({ octokit, repo, inputs, tag, version, changelogM
   const prTitle = allEntries.length === 1
     ? `📋 Update CHANGELOG.md for ${tag}`
     : `📋 Update CHANGELOG.md (${allEntries.length} releases)`;
+
+  if (inputs.dryRun) {
+    core.info(`[DRY RUN] Would open/update Changelog PR: ${prTitle}`);
+    return;
+  }
 
   const pr = await prManager.openOrUpdatePR(
     CHANGELOG_BRANCH,
@@ -359,7 +449,7 @@ function buildReleasePRBody(tag, changelogMd) {
     changes,
     '',
     '---',
-    '_Auto-generated by [smart-gh-release](https://github.com/your-org/smart-gh-release)_',
+    '_Auto-generated by [smart-gh-release](https://github.com/Dev-Kitx/smart-gh-release)_',
   ].join('\n');
 }
 
@@ -394,7 +484,7 @@ function buildChangelogPRBody(entries) {
     sections.join('\n\n---\n\n'),
     '',
     '---',
-    '_Auto-generated by [smart-gh-release](https://github.com/your-org/smart-gh-release)_',
+    '_Auto-generated by [smart-gh-release](https://github.com/Dev-Kitx/smart-gh-release)_',
     // Store entries as a hidden comment so future updates can accumulate correctly
     `${PR_ENTRIES_MARKER}${JSON.stringify(entries)} -->`,
   ].join('\n');

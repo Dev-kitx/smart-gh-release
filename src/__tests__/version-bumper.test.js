@@ -246,6 +246,108 @@ describe('VersionBumper', () => {
     });
   });
 
+  describe('deno.json / deno.jsonc', () => {
+    it.each([['deno.json'], ['deno.jsonc']])('replaces version in %s', async (file) => {
+      const content = '{\n  "name": "my-module",\n  "version": "1.0.0"\n}\n';
+      const octokit = makeOctokit({ content });
+      const vb = new VersionBumper(octokit, REPO);
+      await vb.bumpFiles([file], '1.1.0', 'main', 'v1.1.0');
+      const decoded = Buffer.from(octokit._commit.mock.calls[0][0].content, 'base64').toString('utf8');
+      expect(decoded).toContain('"version": "1.1.0"');
+    });
+  });
+
+  describe('pubspec.yaml', () => {
+    it('replaces plain semver version', async () => {
+      const content = 'name: my_app\nversion: 1.0.0\n';
+      const octokit = makeOctokit({ content });
+      const vb = new VersionBumper(octokit, REPO);
+      await vb.bumpFiles(['pubspec.yaml'], '2.0.0', 'main', 'v2.0.0');
+      const decoded = Buffer.from(octokit._commit.mock.calls[0][0].content, 'base64').toString('utf8');
+      expect(decoded).toContain('version: 2.0.0');
+    });
+
+    it('preserves Flutter build number', async () => {
+      const content = 'name: my_app\nversion: 1.0.0+42\n';
+      const octokit = makeOctokit({ content });
+      const vb = new VersionBumper(octokit, REPO);
+      await vb.bumpFiles(['pubspec.yaml'], '2.0.0', 'main', 'v2.0.0');
+      const decoded = Buffer.from(octokit._commit.mock.calls[0][0].content, 'base64').toString('utf8');
+      expect(decoded).toContain('version: 2.0.0+42');
+    });
+  });
+
+  describe('*.csproj', () => {
+    it('replaces <Version> tag', async () => {
+      const content = '<Project>\n  <PropertyGroup>\n    <Version>1.0.0</Version>\n  </PropertyGroup>\n</Project>\n';
+      const octokit = makeOctokit({ content });
+      const vb = new VersionBumper(octokit, REPO);
+      await vb.bumpFiles(['MyApp.csproj'], '2.0.0', 'main', 'v2.0.0');
+      const decoded = Buffer.from(octokit._commit.mock.calls[0][0].content, 'base64').toString('utf8');
+      expect(decoded).toContain('<Version>2.0.0</Version>');
+      expect(decoded).not.toContain('<Version>1.0.0</Version>');
+    });
+  });
+
+  describe('pom.xml', () => {
+    it('replaces the first <version> tag (project version)', async () => {
+      const content = '<project>\n  <groupId>com.example</groupId>\n  <artifactId>my-app</artifactId>\n  <version>1.0.0</version>\n</project>\n';
+      const octokit = makeOctokit({ content });
+      const vb = new VersionBumper(octokit, REPO);
+      await vb.bumpFiles(['pom.xml'], '2.0.0', 'main', 'v2.0.0');
+      const decoded = Buffer.from(octokit._commit.mock.calls[0][0].content, 'base64').toString('utf8');
+      expect(decoded).toContain('<version>2.0.0</version>');
+      expect(decoded).not.toContain('<version>1.0.0</version>');
+    });
+  });
+
+  describe('gradle.properties', () => {
+    it('replaces version = <value>', async () => {
+      const content = 'group=com.example\nversion=1.0.0\n';
+      const octokit = makeOctokit({ content });
+      const vb = new VersionBumper(octokit, REPO);
+      await vb.bumpFiles(['gradle.properties'], '1.1.0', 'main', 'v1.1.0');
+      const decoded = Buffer.from(octokit._commit.mock.calls[0][0].content, 'base64').toString('utf8');
+      expect(decoded).toContain('version=1.1.0');
+      expect(decoded).not.toContain('version=1.0.0');
+    });
+  });
+
+  describe('Chart.yaml', () => {
+    it('replaces version: <value>', async () => {
+      const content = 'apiVersion: v2\nname: my-chart\nversion: 0.1.0\n';
+      const octokit = makeOctokit({ content });
+      const vb = new VersionBumper(octokit, REPO);
+      await vb.bumpFiles(['Chart.yaml'], '0.2.0', 'main', 'v0.2.0');
+      const decoded = Buffer.from(octokit._commit.mock.calls[0][0].content, 'base64').toString('utf8');
+      expect(decoded).toContain('version: 0.2.0');
+      expect(decoded).not.toContain('version: 0.1.0');
+    });
+  });
+
+  describe('mix.exs', () => {
+    it('replaces @version "..."', async () => {
+      const content = 'defmodule MyApp.MixProject do\n  @version "1.0.0"\nend\n';
+      const octokit = makeOctokit({ content });
+      const vb = new VersionBumper(octokit, REPO);
+      await vb.bumpFiles(['mix.exs'], '1.1.0', 'main', 'v1.1.0');
+      const decoded = Buffer.from(octokit._commit.mock.calls[0][0].content, 'base64').toString('utf8');
+      expect(decoded).toContain('@version "1.1.0"');
+      expect(decoded).not.toContain('@version "1.0.0"');
+    });
+  });
+
+  describe('VERSION / version.txt', () => {
+    it.each([['VERSION'], ['version.txt']])('replaces semver in %s', async (file) => {
+      const octokit = makeOctokit({ content: '1.0.0\n' });
+      const vb = new VersionBumper(octokit, REPO);
+      await vb.bumpFiles([file], '2.0.0', 'main', 'v2.0.0');
+      const decoded = Buffer.from(octokit._commit.mock.calls[0][0].content, 'base64').toString('utf8');
+      expect(decoded).toContain('2.0.0');
+      expect(decoded).not.toContain('1.0.0');
+    });
+  });
+
   // ── Commit metadata ─────────────────────────────────────────────────────────
 
   describe('commit message', () => {

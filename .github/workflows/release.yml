@@ -69,8 +69,10 @@ on:
     paths-ignore:
       - 'README.md'
       - 'CHANGELOG.md'
+      - 'package.json'
       - 'codecov.yml'
       - 'dist/**'
+      - .github/badges/**
   workflow_dispatch: # allow manual trigger from the Actions tab
 
 permissions:
@@ -103,6 +105,7 @@ jobs:
           generate_badge: true
           generate_checksums: true
           include_contributors: true
+          publish_major_tag: true
           bump_version_in_files: |
             package.json
 

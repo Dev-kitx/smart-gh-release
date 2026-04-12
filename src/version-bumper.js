@@ -2,11 +2,19 @@ import * as core from '@actions/core';
 
 // Each detector: match (filename pattern), find (version existence check), replace (fn)
 const DETECTORS = [
+  // ── JavaScript / Node ───────────────────────────────────────────────────────
   {
     match:   /(?:^|\/)package\.json$/,
     find:    /"version"\s*:\s*"[^"]+"/,
     replace: (content, v) => content.replace(/"version"\s*:\s*"[^"]+"/, `"version": "${v}"`),
   },
+  // ── Deno ────────────────────────────────────────────────────────────────────
+  {
+    match:   /(?:^|\/)deno\.jsonc?$/,
+    find:    /"version"\s*:\s*"[^"]+"/,
+    replace: (content, v) => content.replace(/"version"\s*:\s*"[^"]+"/, `"version": "${v}"`),
+  },
+  // ── Python ──────────────────────────────────────────────────────────────────
   {
     match:   /(?:^|\/)pyproject\.toml$/,
     find:    /^version\s*=\s*"[^"]+"/m,
@@ -28,15 +36,65 @@ const DETECTORS = [
     find:    /__version__\s*=\s*(['"])[^'"]+\1/,
     replace: (content, v) => content.replace(/(__version__\s*=\s*['"])[^'"]+(['"])/, `$1${v}$2`),
   },
+  // ── Rust ────────────────────────────────────────────────────────────────────
   {
     match:   /(?:^|\/)Cargo\.toml$/,
     find:    /^version\s*=\s*"[^"]+"/m,
     replace: (content, v) => content.replace(/^(version\s*=\s*)"[^"]+"/m, `$1"${v}"`),
   },
+  // ── Ruby ────────────────────────────────────────────────────────────────────
   {
     match:   /\.gemspec$/,
     find:    /\.version\s*=\s*(['"])[^'"]+\1/,
     replace: (content, v) => content.replace(/(\.version\s*=\s*['"])[^'"]+(['"])/, `$1${v}$2`),
+  },
+  // ── Dart / Flutter ──────────────────────────────────────────────────────────
+  {
+    // Preserves Flutter build number: 1.2.3+4 → NEWVER+4
+    match:   /(?:^|\/)pubspec\.yaml$/,
+    find:    /^version\s*:\s*\S+/m,
+    replace: (content, v) => content.replace(/^(version\s*:\s*)(\S+)/m, (_, prefix, old) => {
+      const build = old.includes('+') ? old.slice(old.indexOf('+')) : '';
+      return `${prefix}${v}${build}`;
+    }),
+  },
+  // ── .NET / C# ───────────────────────────────────────────────────────────────
+  {
+    match:   /\.csproj$/,
+    find:    /<Version>[^<]+<\/Version>/i,
+    replace: (content, v) => content.replace(/(<Version>)[^<]+(<\/Version>)/i, `$1${v}$2`),
+  },
+  // ── Java / Maven ────────────────────────────────────────────────────────────
+  // Targets the first <version> tag, which is the project version.
+  // Note: dependency versions further down the file are not affected.
+  {
+    match:   /(?:^|\/)pom\.xml$/,
+    find:    /<version>[^<]+<\/version>/,
+    replace: (content, v) => content.replace(/<version>[^<]+<\/version>/, `<version>${v}</version>`),
+  },
+  // ── Kotlin / Gradle ─────────────────────────────────────────────────────────
+  {
+    match:   /(?:^|\/)gradle\.properties$/,
+    find:    /^version\s*=\s*.+$/m,
+    replace: (content, v) => content.replace(/^(version\s*=\s*).+$/m, `$1${v}`),
+  },
+  // ── Helm ────────────────────────────────────────────────────────────────────
+  {
+    match:   /(?:^|\/)Chart\.yaml$/,
+    find:    /^version\s*:\s*\S+/m,
+    replace: (content, v) => content.replace(/^(version\s*:\s*)\S+/m, `$1${v}`),
+  },
+  // ── Elixir ──────────────────────────────────────────────────────────────────
+  {
+    match:   /(?:^|\/)mix\.exs$/,
+    find:    /@version\s*"[^"]+"/,
+    replace: (content, v) => content.replace(/(@version\s*")[^"]+(")/,  `$1${v}$2`),
+  },
+  // ── Plain text version file ─────────────────────────────────────────────────
+  {
+    match:   /(?:^|\/)(?:VERSION|version\.txt)$/,
+    find:    /\d+\.\d+\.\d+/,
+    replace: (content, v) => content.replace(/\d+\.\d+\.\d+.*/, v),
   },
 ];
 

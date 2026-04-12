@@ -10,20 +10,21 @@ A feature-rich GitHub Release action that goes beyond what any single marketplac
 
 ## Features
 
-| Feature | Description |
-|---|---|
-| **Auto semantic versioning** | Reads conventional commits since the last tag and computes the next `major` / `minor` / `patch` version automatically. No need to hardcode tags in your workflow. |
-| **Pre-release channels** | Set `prerelease_channel: beta` to produce `v1.1.0-beta.1`, `v1.1.0-beta.2`, etc. The counter increments automatically per channel. |
-| **Breaking change detection** | `feat!:` or `BREAKING CHANGE:` in a commit footer forces a major bump and appears under a prominent `🚨 Breaking Changes` section at the top of the changelog. |
-| **Grouped emoji changelog** | Commits are grouped by conventional type (`✨ Features`, `🐛 Bug Fixes`, `⚡ Performance`, …). Fully customisable via a JSON `changelog_sections` input. |
-| **SHA-256 checksum file** | Automatically generates a `checksums.txt` for every uploaded asset and uploads it alongside them — no extra step or script required. |
-| **Required asset validation** | Declare glob patterns that *must* resolve to at least one file. The release is aborted if any required artifact is missing, preventing incomplete publishes. |
-| **Contributor credits** | Lists every human contributor with a link to their GitHub profile. Bots (dependabot, renovate, github-actions, snyk, release-please, …) are automatically excluded. |
-| **GitHub Discussions** | Optionally creates an announcement Discussion in any category you choose, linked back to the release page. |
-| **PR release comments** | After a release is published, automatically posts a comment on every merged PR that was included in the release, linking back to the release URL. |
-| **Rich Job Summary** | A formatted table appears in the GitHub Actions UI showing version, bump level, asset count, contributor count, and the full changelog — no log digging needed. |
-| **Update-or-create** | Set `update_existing: true` to patch an existing release instead of failing. Useful for draft-then-publish workflows. |
-| **Release badge** | Commits a `.github/badges/release.json` shields.io endpoint file to the repo so you can display a live version badge in your README with no third-party service. |
+| Feature                       | Description                                                                                                                                                                                                                   |
+|-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Auto semantic versioning**  | Reads conventional commits since the last tag and computes the next `major` / `minor` / `patch` version automatically. No need to hardcode tags in your workflow.                                                             |
+| **Pre-release channels**      | Set `prerelease_channel: beta` to produce `v1.1.0-beta.1`, `v1.1.0-beta.2`, etc. The counter increments automatically per channel.                                                                                            |
+| **Breaking change detection** | `feat!:` or `BREAKING CHANGE:` in a commit footer forces a major bump and appears under a prominent `🚨 Breaking Changes` section at the top of the changelog.                                                                |
+| **Grouped emoji changelog**   | Commits are grouped by conventional type (`✨ Features`, `🐛 Bug Fixes`, `⚡ Performance`, …). Fully customisable via a JSON `changelog_sections` input.                                                                        |
+| **SHA-256 checksum file**     | Automatically generates a `checksums.txt` for every uploaded asset and uploads it alongside them — no extra step or script required.                                                                                          |
+| **Required asset validation** | Declare glob patterns that *must* resolve to at least one file. The release is aborted if any required artifact is missing, preventing incomplete publishes.                                                                  |
+| **Contributor credits**       | Lists every human contributor with a link to their GitHub profile. Bots (dependabot, renovate, github-actions, snyk, release-please, …) are automatically excluded.                                                           |
+| **GitHub Discussions**        | Optionally creates an announcement Discussion in any category you choose, linked back to the release page.                                                                                                                    |
+| **PR release comments**       | After a release is published, automatically posts a comment on every merged PR that was included in the release, linking back to the release URL.                                                                             |
+| **Rich Job Summary**          | A formatted table appears in the GitHub Actions UI showing version, bump level, asset count, contributor count, and the full changelog — no log digging needed.                                                               |
+| **Update-or-create**          | Set `update_existing: true` to patch an existing release instead of failing. Useful for draft-then-publish workflows.                                                                                                         |
+| **Release badge**             | Commits a `.github/badges/release.json` shields.io endpoint file to the repo so you can display a live version badge in your README with no third-party service.                                                              |
+| **Floating major tag**        | Optionally creates or force-updates a `v{major}` tag (e.g. `v1`) pointing to the latest release commit — so consumers can pin to `@v1` and always get the latest. Supports an optional approval gate via GitHub Environments. |
 
 ---
 
@@ -51,7 +52,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: your-org/smart-gh-release@v1
+      - uses: Dev-Kitx/smart-gh-release@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           generate_checksums: true
@@ -79,7 +80,7 @@ jobs:
         with:
           fetch-depth: 0   # required for tag history
 
-      - uses: your-org/smart-gh-release@v1
+      - uses: Dev-Kitx/smart-gh-release@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           auto_version: true
@@ -95,107 +96,118 @@ With `auto_version: true` you never write a tag or bump a version number manuall
 
 ### Authentication
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `token` | No | `${{ github.token }}` | GitHub token. Needs `contents: write`. Add `discussions: write` if using `create_discussion`. |
+| Input   | Required | Default               | Description                                                                                   |
+|---------|----------|-----------------------|-----------------------------------------------------------------------------------------------|
+| `token` | No       | `${{ github.token }}` | GitHub token. Needs `contents: write`. Add `discussions: write` if using `create_discussion`. |
 
 ### Versioning
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `tag` | No | — | Explicit tag to release (e.g. `v1.2.3`). Takes precedence over `auto_version`. |
-| `auto_version` | No | `false` | Compute the next tag from conventional commits. |
-| `version_prefix` | No | `v` | Prefix prepended to auto-generated version numbers. |
-| `initial_version` | No | `0.1.0` | Seed version used when no prior semver tags exist. |
-| `target_commitish` | No | triggering SHA | Commit SHA or branch to tag. |
+| Input              | Required | Default        | Description                                                                    |
+|--------------------|----------|----------------|--------------------------------------------------------------------------------|
+| `tag`              | No       | —              | Explicit tag to release (e.g. `v1.2.3`). Takes precedence over `auto_version`. |
+| `auto_version`     | No       | `false`        | Compute the next tag from conventional commits.                                |
+| `version_prefix`   | No       | `v`            | Prefix prepended to auto-generated version numbers.                            |
+| `initial_version`  | No       | `0.1.0`        | Seed version used when no prior semver tags exist.                             |
+| `target_commitish` | No       | triggering SHA | Commit SHA or branch to tag.                                                   |
 
 ### Release Metadata
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `name` | No | tag name | Release title. |
-| `body` | No | — | Custom text prepended to the auto-generated changelog. |
-| `draft` | No | `false` | Publish as a draft. |
-| `prerelease` | No | `false` | Mark as pre-release. |
-| `prerelease_channel` | No | — | Channel identifier: `alpha`, `beta`, or `rc`. Implies `prerelease: true`. Used by `auto_version` to produce versioned channels. |
+| Input                | Required | Default  | Description                                                                                                                     |
+|----------------------|----------|----------|---------------------------------------------------------------------------------------------------------------------------------|
+| `name`               | No       | tag name | Release title.                                                                                                                  |
+| `body`               | No       | —        | Custom text prepended to the auto-generated changelog.                                                                          |
+| `draft`              | No       | `false`  | Publish as a draft.                                                                                                             |
+| `prerelease`         | No       | `false`  | Mark as pre-release.                                                                                                            |
+| `prerelease_channel` | No       | —        | Channel identifier: `alpha`, `beta`, or `rc`. Implies `prerelease: true`. Used by `auto_version` to produce versioned channels. |
 
 ### Changelog
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `changelog_sections` | No | built-in | JSON array to customise sections. See [Custom Sections](#custom-changelog-sections). |
-| `exclude_types` | No | `ci,style,test` | Comma-separated conventional commit types to omit. |
+| Input                | Required | Default         | Description                                                                          |
+|----------------------|----------|-----------------|--------------------------------------------------------------------------------------|
+| `changelog_sections` | No       | built-in        | JSON array to customise sections. See [Custom Sections](#custom-changelog-sections). |
+| `exclude_types`      | No       | `ci,style,test` | Comma-separated conventional commit types to omit.                                   |
 
 ### Contributors
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `include_contributors` | No | `true` | Append a Contributors section crediting everyone who committed since the last release. |
+| Input                  | Required | Default | Description                                                                            |
+|------------------------|----------|---------|----------------------------------------------------------------------------------------|
+| `include_contributors` | No       | `true`  | Append a Contributors section crediting everyone who committed since the last release. |
 
 ### Assets
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `files` | No | — | Newline-separated file paths or glob patterns to upload. |
-| `generate_checksums` | No | `true` | Auto-generate and upload a SHA-256 `checksums.txt`. |
-| `checksum_file` | No | `checksums.txt` | Name of the checksum file. |
-| `fail_on_unmatched_files` | No | `false` | Fail if a glob in `files` matches nothing. |
-| `required_assets` | No | — | Newline-separated globs that **must** match a resolved file or the release is aborted. |
+| Input                     | Required | Default         | Description                                                                            |
+|---------------------------|----------|-----------------|----------------------------------------------------------------------------------------|
+| `files`                   | No       | —               | Newline-separated file paths or glob patterns to upload.                               |
+| `generate_checksums`      | No       | `true`          | Auto-generate and upload a SHA-256 `checksums.txt`.                                    |
+| `checksum_file`           | No       | `checksums.txt` | Name of the checksum file.                                                             |
+| `fail_on_unmatched_files` | No       | `false`         | Fail if a glob in `files` matches nothing.                                             |
+| `required_assets`         | No       | —               | Newline-separated globs that **must** match a resolved file or the release is aborted. |
 
 ### Release Badge
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `generate_badge` | No | `false` | Commit a shields.io endpoint badge JSON to `.github/badges/release.json` on the PR branch. See [Release Badge](#release-badge). |
+| Input            | Required | Default | Description                                                                                                                     |
+|------------------|----------|---------|---------------------------------------------------------------------------------------------------------------------------------|
+| `generate_badge` | No       | `false` | Commit a shields.io endpoint badge JSON to `.github/badges/release.json` on the PR branch. See [Release Badge](#release-badge). |
 
 ### Version File Bumping
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `bump_version_in_files` | No | — | Newline- or comma-separated list of repo-relative file paths whose version string should be bumped to match the new release version. See [Bumping Version Files](#bumping-version-files). |
+| Input                   | Required | Default | Description                                                                                                                                                                               |
+|-------------------------|----------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `bump_version_in_files` | No       | —       | Newline- or comma-separated list of repo-relative file paths whose version string should be bumped to match the new release version. See [Bumping Version Files](#bumping-version-files). |
+
+### Floating Major Tag
+
+| Input               | Required | Default | Description                                                                                                                                   |
+|---------------------|----------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `publish_major_tag` | No       | `false` | After publishing the release, create or force-update a floating major version tag (e.g. `v1`). See [Floating Major Tag](#floating-major-tag). |
+| `major_tag_only`    | No       | `false` | Skip the full release flow and only publish the floating major tag. Requires `tag` to be set. Use in a second job with environment approval to avoid release flow side effects. |
 
 ### Behaviour
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `update_existing` | No | `false` | Update an existing release for the tag instead of failing. |
-| `auto_release` | No | `true` | Controls when the GitHub Release is created. See [Auto Release Mode](#auto-release-mode). |
+| Input             | Required | Default | Description                                                                               |
+|-------------------|----------|---------|-------------------------------------------------------------------------------------------|
+| `update_existing`    | No | `false` | Update an existing release for the tag instead of failing. |
+| `auto_release`       | No | `true`  | Controls when the GitHub Release is created. See [Auto Release Mode](#auto-release-mode). |
+| `dry_run`            | No | `false` | Compute version and changelog but make no changes. All outputs are still set. See [Dry Run](#dry-run). |
+| `skip_if_no_commits` | No | `false` | Skip the release when there are no commits since the last tag. Sets `skipped: true` output. |
 
 ### GitHub Discussions
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `create_discussion` | No | `false` | Create a Discussion announcing the release. |
-| `discussion_category` | No | `Announcements` | Name of the repository Discussion category to post into. |
+| Input                 | Required | Default         | Description                                              |
+|-----------------------|----------|-----------------|----------------------------------------------------------|
+| `create_discussion`   | No       | `false`         | Create a Discussion announcing the release.              |
+| `discussion_category` | No       | `Announcements` | Name of the repository Discussion category to post into. |
 
 ### PR Comments
 
-| Input | Required | Default | Description |
-|---|---|---|---|
-| `comment_on_prs` | No | `true` | After publishing a release, post a comment on every merged PR included in the release linking back to the release URL. Set to `false` to disable. |
+| Input            | Required | Default | Description                                                                                                                                       |
+|------------------|----------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `comment_on_prs` | No       | `true`  | After publishing a release, post a comment on every merged PR included in the release linking back to the release URL. Set to `false` to disable. |
 
 ---
 
 ## Outputs
 
-| Output | Description |
-|---|---|
-| `release_id` | Numeric ID of the created / updated release. |
-| `release_url` | HTML URL of the release page. |
-| `upload_url` | Asset upload URL (useful for subsequent upload steps). |
-| `tag_name` | The resolved tag name (e.g. `v1.3.0`). |
-| `version` | Version string without prefix (e.g. `1.3.0`). |
-| `assets_uploaded` | Number of assets successfully uploaded. |
-| `changelog` | The full generated changelog in Markdown. |
-| `bump_level` | Detected version bump: `major`, `minor`, or `patch`. |
-| `badge_url` | shields.io endpoint URL for the release badge (always set, regardless of `generate_badge`). |
-| `badge_markdown` | Ready-to-paste Markdown for embedding the release badge in a README (always set). |
-| `pr_url` | URL of the opened or updated pull request (`smart-changelog` or `smart-release`). |
+| Output            | Description                                                                                                                 |
+|-------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `release_id`      | Numeric ID of the created / updated release.                                                                                |
+| `release_url`     | HTML URL of the release page.                                                                                               |
+| `upload_url`      | Asset upload URL (useful for subsequent upload steps).                                                                      |
+| `tag_name`        | The resolved tag name (e.g. `v1.3.0`).                                                                                      |
+| `version`         | Version string without prefix (e.g. `1.3.0`).                                                                               |
+| `assets_uploaded` | Number of assets successfully uploaded.                                                                                     |
+| `changelog`       | The full generated changelog in Markdown.                                                                                   |
+| `bump_level`      | Detected version bump: `major`, `minor`, or `patch`.                                                                        |
+| `badge_url`       | shields.io endpoint URL for the release badge (always set, regardless of `generate_badge`).                                 |
+| `badge_markdown`  | Ready-to-paste Markdown for embedding the release badge in a README (always set).                                           |
+| `skipped`         | `"true"` when the release was skipped (e.g. `skip_if_no_commits: true` and no commits found). `"false"` otherwise. |
+| `major_tag`       | The floating major tag that was created or updated (e.g. `v1`). Set when `publish_major_tag: true` or `major_tag_only: true`. Empty string otherwise. |
+| `pr_url`          | URL of the opened or updated pull request (`smart-changelog` or `smart-release`).                                           |
 
 ### Using Outputs
 
 ```yaml
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   id: release
   with:
     auto_version: true
@@ -228,29 +240,29 @@ BREAKING CHANGE: config is now YAML  ← breaking change in footer
 
 ### Version bump rules
 
-| Commit type | Bump |
-|---|---|
+| Commit type                                         | Bump      |
+|-----------------------------------------------------|-----------|
 | Any commit with `!` or `BREAKING CHANGE:` in footer | **major** |
-| `feat` / `feature` | **minor** |
-| Everything else | **patch** |
+| `feat` / `feature`                                  | **minor** |
+| Everything else                                     | **patch** |
 
 ### Default changelog sections
 
-| Emoji | Section | Types |
-|---|---|---|
-| 🚨 | Breaking Changes | *(auto-detected)* |
-| ✨ | Features | `feat`, `feature` |
-| 🐛 | Bug Fixes | `fix`, `bugfix`, `hotfix` |
-| ⚡ | Performance | `perf` |
-| ♻️ | Refactoring | `refactor` |
-| 📚 | Documentation | `docs` |
-| 📦 | Build | `build` |
-| 🔄 | CI / CD | `ci` |
-| 🧪 | Tests | `test`, `tests` |
-| 🔧 | Maintenance | `chore` |
-| 💅 | Code Style | `style` |
-| ⏪ | Reverts | `revert` |
-| 📌 | Other Changes | *(anything unrecognised)* |
+| Emoji | Section          | Types                     |
+|-------|------------------|---------------------------|
+| 🚨    | Breaking Changes | *(auto-detected)*         |
+| ✨     | Features         | `feat`, `feature`         |
+| 🐛    | Bug Fixes        | `fix`, `bugfix`, `hotfix` |
+| ⚡     | Performance      | `perf`                    |
+| ♻️    | Refactoring      | `refactor`                |
+| 📚    | Documentation    | `docs`                    |
+| 📦    | Build            | `build`                   |
+| 🔄    | CI / CD          | `ci`                      |
+| 🧪    | Tests            | `test`, `tests`           |
+| 🔧    | Maintenance      | `chore`                   |
+| 💅    | Code Style       | `style`                   |
+| ⏪     | Reverts          | `revert`                  |
+| 📌    | Other Changes    | *(anything unrecognised)* |
 
 ---
 
@@ -259,7 +271,7 @@ BREAKING CHANGE: config is now YAML  ← breaking change in footer
 Override the default sections with a JSON array:
 
 ```yaml
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   with:
     auto_version: true
     changelog_sections: |
@@ -281,7 +293,7 @@ Use channels for staged rollouts: `alpha` → `beta` → `rc` → stable.
 
 ```yaml
 # Publish to the beta channel
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   with:
     auto_version: true
     prerelease_channel: beta
@@ -307,7 +319,7 @@ The action automatically increments the channel counter. Switching to a differen
 - name: Build
   run: make build   # produces dist/*.tar.gz and dist/*.zip
 
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   with:
     auto_version: true
     files: |
@@ -350,7 +362,7 @@ permissions:
   contents: write
   discussions: write   # required
 
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   with:
     auto_version: true
     create_discussion: true
@@ -367,7 +379,7 @@ Publish a draft first, review it, then promote it:
 
 ```yaml
 # Step 1 — create draft
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   id: draft
   with:
     auto_version: true
@@ -377,7 +389,7 @@ Publish a draft first, review it, then promote it:
 - run: ./scripts/smoke-test.sh
 
 # Step 3 — promote draft to published
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   with:
     tag: ${{ steps.draft.outputs.tag_name }}
     draft: false
@@ -413,7 +425,7 @@ jobs:
 
       - run: npm ci && npm run build
 
-      - uses: your-org/smart-gh-release@v1
+      - uses: Dev-Kitx/smart-gh-release@v1
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -461,7 +473,7 @@ jobs:
 Enable `generate_badge: true` and the action commits a `.github/badges/release.json` file to the same PR branch as `CHANGELOG.md`. Once that PR is merged, the file is served over `raw.githubusercontent.com` as a live [shields.io endpoint badge](https://shields.io/badges/endpoint-badge) that always reflects the latest release version — no third-party service or token required.
 
 ```yaml
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   with:
     auto_version: true
     generate_badge: true
@@ -482,9 +494,9 @@ Or hardcode it manually using the `badge_url` output pattern:
 
 **Badge appearance:**
 
-| Release type | Color |
-|---|---|
-| Stable (`v1.3.0`) | ![blue](https://img.shields.io/badge/release-v1.3.0-blue) |
+| Release type                  | Color                                                                 |
+|-------------------------------|-----------------------------------------------------------------------|
+| Stable (`v1.3.0`)             | ![blue](https://img.shields.io/badge/release-v1.3.0-blue)             |
 | Pre-release (`v1.3.0-beta.1`) | ![orange](https://img.shields.io/badge/release-v1.3.0--beta.1-orange) |
 
 The badge lands in the default branch when the PR is merged — same timing as `CHANGELOG.md` and version files. See [Auto Release Mode](#auto-release-mode) for the timing distinction between modes.
@@ -496,7 +508,7 @@ The badge lands in the default branch when the PR is merged — same timing as `
 Use `bump_version_in_files` to keep your version files in sync with the release tag. The action commits the bumped files onto the same PR branch as `CHANGELOG.md`, so everything lands in the default branch together when the PR is merged.
 
 ```yaml
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   with:
     auto_version: true
     bump_version_in_files: |
@@ -507,15 +519,23 @@ Use `bump_version_in_files` to keep your version files in sync with the release 
 
 ### Supported file formats
 
-| File | Pattern updated |
-|---|---|
-| `package.json` | `"version": "x.y.z"` |
-| `pyproject.toml` | `version = "x.y.z"` (PEP 517 / Poetry / Hatch) |
-| `setup.cfg` | `version = x.y.z` |
-| `setup.py` | `version="x.y.z"` or `version='x.y.z'` |
-| `__init__.py`, `_version.py`, `version.py` | `__version__ = "x.y.z"` |
-| `Cargo.toml` | `version = "x.y.z"` |
-| `*.gemspec` | `.version = "x.y.z"` |
+| File | Ecosystem | Pattern updated |
+|---|---|---|
+| `package.json` | Node.js | `"version": "x.y.z"` |
+| `deno.json`, `deno.jsonc` | Deno | `"version": "x.y.z"` |
+| `pyproject.toml` | Python (PEP 517 / Poetry / Hatch) | `version = "x.y.z"` |
+| `setup.cfg` | Python | `version = x.y.z` |
+| `setup.py` | Python | `version="x.y.z"` or `version='x.y.z'` |
+| `__init__.py`, `_version.py`, `version.py` | Python | `__version__ = "x.y.z"` |
+| `Cargo.toml` | Rust | `version = "x.y.z"` |
+| `*.gemspec` | Ruby | `.version = "x.y.z"` |
+| `pubspec.yaml` | Dart / Flutter | `version: x.y.z` (build number preserved: `1.2.3+4` → `NEWVER+4`) |
+| `*.csproj` | .NET / C# | `<Version>x.y.z</Version>` |
+| `pom.xml` | Java / Maven | First `<version>x.y.z</version>` (project version) |
+| `gradle.properties` | Kotlin / Gradle | `version=x.y.z` |
+| `Chart.yaml` | Helm | `version: x.y.z` |
+| `mix.exs` | Elixir | `@version "x.y.z"` |
+| `VERSION`, `version.txt` | Any | Entire file content replaced with new version |
 
 Files with an unrecognised format or a missing version pattern are skipped with a warning — the release is never aborted because of a version bump failure.
 
@@ -523,14 +543,115 @@ Files with an unrecognised format or a missing version pattern are skipped with 
 
 The timing differs between the two release modes:
 
-| Mode | Branch bumped | Reaches default branch when |
-|---|---|---|
-| `auto_release: false` | `smart-release` | The Release PR is merged (same event that triggers the GitHub Release — fully atomic) |
-| `auto_release: true` | `smart-changelog` | The Changelog PR is merged (after the GitHub Release is already live) |
+| Mode                  | Branch bumped     | Reaches default branch when                                                           |
+|-----------------------|-------------------|---------------------------------------------------------------------------------------|
+| `auto_release: false` | `smart-release`   | The Release PR is merged (same event that triggers the GitHub Release — fully atomic) |
+| `auto_release: true`  | `smart-changelog` | The Changelog PR is merged (after the GitHub Release is already live)                 |
 
 **`auto_release: false` is the atomic choice.** Version files, `CHANGELOG.md`, and the GitHub Release are all gated behind the same PR merge. There is no window where the release tag says `v1.3.0` but `package.json` in `main` still reads `1.2.0`.
 
 **`auto_release: true` has a short lag.** The release is published immediately; the version bump lands in `main` only when you merge the `smart-changelog` PR. For most projects this is acceptable, but if downstream tooling reads the version file from `main` straight after a release, prefer `auto_release: false`.
+
+---
+
+## Dry Run
+
+Set `dry_run: true` to validate your workflow configuration without creating any releases, opening PRs, uploading assets, or updating tags. The action computes everything — version, changelog, contributors — and sets all outputs as if a real release had occurred, but makes zero API writes.
+
+```yaml
+- uses: Dev-Kitx/smart-gh-release@v1
+  id: release
+  with:
+    auto_version: true
+    dry_run: true
+
+- name: Inspect what would be released
+  run: |
+    echo "Next tag:   ${{ steps.release.outputs.tag_name }}"
+    echo "Bump level: ${{ steps.release.outputs.bump_level }}"
+    echo "Changelog:"
+    echo "${{ steps.release.outputs.changelog }}"
+```
+
+The Job Summary shows a **Dry run** banner and marks the status as `🔍 Dry run (not published)` so it's immediately clear in the Actions UI that nothing was shipped.
+
+---
+
+## Floating Major Tag
+
+Enable `publish_major_tag: true` to create or force-update a floating major version tag (e.g. `v1`) every time a release is published. This lets consumers of your action pin to a stable major version without updating their workflow on every patch release.
+
+```yaml
+uses: Dev-Kitx/smart-gh-release@v1   # always the latest v1.x.x
+# instead of
+uses: Dev-Kitx/smart-gh-release@v1.3.0  # pinned to a specific patch
+```
+
+### Version mapping
+
+The major version is clamped to a minimum of `1`, matching the behaviour of the `tag-major.yml` workflow — `v0.x.x` releases update `v1`.
+
+| Release tag | Floating tag updated |
+|-------------|----------------------|
+| `v0.5.1`    | `v1`                 |
+| `v1.3.0`    | `v1`                 |
+| `v2.0.0`    | `v2`                 |
+
+### Pattern 1 — immediate (no approval)
+
+The major tag is published right after the release. Simple single-job setup:
+
+```yaml
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: Dev-Kitx/smart-gh-release@v1
+        with:
+          auto_version: true
+          publish_major_tag: true   # v1 updated immediately after release
+```
+
+### Pattern 2 — with approval gate
+
+For cases where updating `v1` (which affects all downstream consumers pinned to `@v1`) should require explicit sign-off, use a second job protected by a [GitHub Environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) with required reviewers.
+
+```yaml
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: Dev-Kitx/smart-gh-release@v1
+        id: release
+        with:
+          auto_version: true
+          publish_major_tag: false   # skip — handled by the next job
+
+  publish-major-tag:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: production          # configure required reviewers here in repo settings
+    steps:
+      - uses: Dev-Kitx/smart-gh-release@v1
+        with:
+          major_tag_only: true
+          tag: ${{ needs.release.outputs.tag_name }}
+```
+
+GitHub pauses the `publish-major-tag` job and shows an approval UI before running. Once approved, `v1` is updated.
+
+>[!TIP]
+> Configure the `production` environment in **Settings → Environments** and add the reviewers who should approve major tag promotions.
 
 ---
 
@@ -557,7 +678,7 @@ permissions:
   contents: write
   pull-requests: write   # required to open the CHANGELOG.md PR
 
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     auto_version: true
@@ -578,14 +699,14 @@ merge smart-release PR
   └─► create GitHub Release
 ```
 
-Commits accumulate across multiple pushes into the same open PR — identical to how `release-please` works. Version files are bumped on the `smart-release` branch, so merging the PR atomically updates `CHANGELOG.md`, version files, and creates the GitHub Release in one step.
+Commits accumulate across multiple pushes into the same open PR. Version files are bumped on the `smart-release` branch, so merging the PR atomically updates `CHANGELOG.md`, version files, and creates the GitHub Release in one step.
 
 ```yaml
 permissions:
   contents: write
   pull-requests: write   # required
 
-- uses: your-org/smart-gh-release@v1
+- uses: Dev-Kitx/smart-gh-release@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     auto_version: true
@@ -628,6 +749,7 @@ gh-release-action/
     ├── version-manager.js          # Semver resolution & auto-bump
     ├── version-bumper.js           # Version file detection & replacement
     ├── badge.js                    # shields.io endpoint badge generation
+    ├── major-tag.js                # Floating major version tag publishing
     ├── changelog-generator.js      # Conventional commit parsing → Markdown
     ├── changelog-file.js           # CHANGELOG.md read/write via GitHub API
     ├── asset-manager.js            # Glob resolution, upload, checksums
@@ -644,6 +766,7 @@ gh-release-action/
         ├── version-manager.test.js
         ├── version-bumper.test.js
         ├── badge.test.js
+        ├── major-tag.test.js
         ├── asset-manager.test.js
         ├── release-manager.test.js
         ├── pr-manager.test.js
@@ -666,13 +789,13 @@ Or pass it at runtime via `changelog_sections` without touching the source.
 
 ## Permissions Reference
 
-| Feature | Required permission |
-|---|---|
-| Create / update releases | `contents: write` |
-| Upload release assets | `contents: write` |
+| Feature                            | Required permission    |
+|------------------------------------|------------------------|
+| Create / update releases           | `contents: write`      |
+| Upload release assets              | `contents: write`      |
 | Open / update PRs (`auto_release`) | `pull-requests: write` |
-| Comment on PRs (`comment_on_prs`) | `pull-requests: write` |
-| Create GitHub Discussions | `discussions: write` |
+| Comment on PRs (`comment_on_prs`)  | `pull-requests: write` |
+| Create GitHub Discussions          | `discussions: write`   |
 
 ---
 
