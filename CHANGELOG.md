@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.6.1] - 2026-04-13
+
+### 📌 Other Changes
+
+- Fix/tagging (#31) ([0d57aa8](https://github.com/Dev-kitx/smart-gh-release/commit/0d57aa8ace056f4abe4c16b2910db83280d3ba66)) by @aakashbasa
+
 ## [v0.6.0] - 2026-04-13
 
 ### ✨ Features
