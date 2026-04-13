@@ -1,6 +1,6 @@
 {
   "name": "smart-gh-release",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Feature-rich GitHub release action with auto-versioning, smart changelog, checksums, and more",
   "type": "module",
   "engines": {
