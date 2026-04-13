@@ -34317,7 +34317,7 @@ const _summary = new Summary();
  * @deprecated use `core.summary`
  */
 const markdownSummary = (/* unused pure expression or super */ null && (_summary));
-const summary = _summary;
+const summary_summary = _summary;
 //# sourceMappingURL=summary.js.map
 ;// CONCATENATED MODULE: ./node_modules/@actions/core/lib/path-utils.js
 
@@ -41955,13 +41955,15 @@ async function createReleaseDiscussion(octokit, repo, releaseData, categoryName)
  * Write a rich GitHub Actions Job Summary for the release.
  *
  * @param {object} opts
- * @param {object}   opts.release        Release object from GitHub API
- * @param {string}   opts.version        Version string (without prefix)
- * @param {string}   opts.bumpLevel      'major' | 'minor' | 'patch'
- * @param {string}   opts.changelog      Generated changelog markdown
- * @param {number}   opts.uploadedCount  Number of uploaded assets
- * @param {number}   opts.contributorCount
+ * @param {object}      opts.release          Release object from GitHub API
+ * @param {string}      opts.version          Version string (without prefix)
+ * @param {string}      opts.bumpLevel        'major' | 'minor' | 'patch'
+ * @param {string}      opts.changelog        Generated changelog markdown
+ * @param {number}      opts.uploadedCount    Number of uploaded assets
+ * @param {number}      opts.contributorCount
  * @param {string|null} opts.previousTag
+ * @param {string}      [opts.majorTag]       Floating major tag (e.g. 'v1'), if published
+ * @param {boolean}     [opts.dryRun]         When true, adds a dry-run banner
  */
 async function writeJobSummary({
   release,
@@ -41971,6 +41973,8 @@ async function writeJobSummary({
   uploadedCount,
   contributorCount,
   previousTag,
+  majorTag,
+  dryRun,
 }) {
   const statusIcon = release.draft
     ? '📝 Draft'
@@ -41980,30 +41984,53 @@ async function writeJobSummary({
 
   const bumpIcon = bumpLevel === 'major' ? '🚨 major' : bumpLevel === 'minor' ? '✨ minor' : '🐛 patch';
 
+  const summary = summary_summary;
+  if (dryRun) summary.addRaw('> [!NOTE]\n> **Dry run** — no release was created. All outputs reflect what would have happened.\n\n');
+
   await summary
-    .addHeading(`🚀 Released ${release.tag_name}`, 1)
+    .addHeading(dryRun ? `🔍 Dry Run: ${release.tag_name}` : `🚀 Released ${release.tag_name}`, 1)
     .addTable([
       [
-        { data: 'Field',      header: true },
-        { data: 'Value',      header: true },
+        { data: 'Field', header: true },
+        { data: 'Value', header: true },
       ],
-      ['Version',        version],
-      ['Bump Level',     bumpIcon],
-      ['Status',         statusIcon],
-      ['Assets',         `${uploadedCount} file${uploadedCount !== 1 ? 's' : ''} uploaded`],
-      ['Contributors',   `${contributorCount} contributor${contributorCount !== 1 ? 's' : ''}`],
-      ['Release page',   `[${release.tag_name}](${release.html_url})`],
+      ['Version',      version],
+      ['Bump Level',   bumpIcon],
+      ['Status',       dryRun ? '🔍 Dry run (not published)' : statusIcon],
+      ...(majorTag ? [['Major tag', `\`${majorTag}\` → ${release.tag_name}`]] : []),
+      ['Assets',       `${uploadedCount} file${uploadedCount !== 1 ? 's' : ''} uploaded`],
+      ['Contributors', `${contributorCount} contributor${contributorCount !== 1 ? 's' : ''}`],
+      ['Release page', `[${release.tag_name}](${release.html_url})`],
       ...(previousTag
-        ? [
-            [
-              'Full changelog',
-              `[${previousTag}...${release.tag_name}](${release.html_url.replace(/\/releases\/.*/, '')}/compare/${previousTag}...${release.tag_name})`,
-            ],
-          ]
+        ? [[
+            'Full changelog',
+            `[${previousTag}...${release.tag_name}](${release.html_url.replace(/\/releases\/.*/, '')}/compare/${previousTag}...${release.tag_name})`,
+          ]]
         : []),
     ])
     .addHeading('Changelog', 2)
     .addRaw(changelog || '_No changes detected._')
+    .write();
+}
+
+/**
+ * Write a minimal Job Summary for the major_tag_only flow.
+ *
+ * @param {object} opts
+ * @param {string} opts.tag       Full release tag (e.g. 'v0.5.1')
+ * @param {string} opts.majorTag  Floating major tag (e.g. 'v1')
+ */
+async function writeMajorTagSummary({ tag, majorTag }) {
+  await summary_summary
+    .addHeading(`🏷️ Major tag updated`, 1)
+    .addTable([
+      [
+        { data: 'Field',     header: true },
+        { data: 'Value',     header: true },
+      ],
+      ['Major tag',    `\`${majorTag}\``],
+      ['Points to',    tag],
+    ])
     .write();
 }
 
@@ -42365,11 +42392,19 @@ class PrManager {
 
 // Each detector: match (filename pattern), find (version existence check), replace (fn)
 const DETECTORS = [
+  // ── JavaScript / Node ───────────────────────────────────────────────────────
   {
     match:   /(?:^|\/)package\.json$/,
     find:    /"version"\s*:\s*"[^"]+"/,
     replace: (content, v) => content.replace(/"version"\s*:\s*"[^"]+"/, `"version": "${v}"`),
   },
+  // ── Deno ────────────────────────────────────────────────────────────────────
+  {
+    match:   /(?:^|\/)deno\.jsonc?$/,
+    find:    /"version"\s*:\s*"[^"]+"/,
+    replace: (content, v) => content.replace(/"version"\s*:\s*"[^"]+"/, `"version": "${v}"`),
+  },
+  // ── Python ──────────────────────────────────────────────────────────────────
   {
     match:   /(?:^|\/)pyproject\.toml$/,
     find:    /^version\s*=\s*"[^"]+"/m,
@@ -42391,15 +42426,65 @@ const DETECTORS = [
     find:    /__version__\s*=\s*(['"])[^'"]+\1/,
     replace: (content, v) => content.replace(/(__version__\s*=\s*['"])[^'"]+(['"])/, `$1${v}$2`),
   },
+  // ── Rust ────────────────────────────────────────────────────────────────────
   {
     match:   /(?:^|\/)Cargo\.toml$/,
     find:    /^version\s*=\s*"[^"]+"/m,
     replace: (content, v) => content.replace(/^(version\s*=\s*)"[^"]+"/m, `$1"${v}"`),
   },
+  // ── Ruby ────────────────────────────────────────────────────────────────────
   {
     match:   /\.gemspec$/,
     find:    /\.version\s*=\s*(['"])[^'"]+\1/,
     replace: (content, v) => content.replace(/(\.version\s*=\s*['"])[^'"]+(['"])/, `$1${v}$2`),
+  },
+  // ── Dart / Flutter ──────────────────────────────────────────────────────────
+  {
+    // Preserves Flutter build number: 1.2.3+4 → NEWVER+4
+    match:   /(?:^|\/)pubspec\.yaml$/,
+    find:    /^version\s*:\s*\S+/m,
+    replace: (content, v) => content.replace(/^(version\s*:\s*)(\S+)/m, (_, prefix, old) => {
+      const build = old.includes('+') ? old.slice(old.indexOf('+')) : '';
+      return `${prefix}${v}${build}`;
+    }),
+  },
+  // ── .NET / C# ───────────────────────────────────────────────────────────────
+  {
+    match:   /\.csproj$/,
+    find:    /<Version>[^<]+<\/Version>/i,
+    replace: (content, v) => content.replace(/(<Version>)[^<]+(<\/Version>)/i, `$1${v}$2`),
+  },
+  // ── Java / Maven ────────────────────────────────────────────────────────────
+  // Targets the first <version> tag, which is the project version.
+  // Note: dependency versions further down the file are not affected.
+  {
+    match:   /(?:^|\/)pom\.xml$/,
+    find:    /<version>[^<]+<\/version>/,
+    replace: (content, v) => content.replace(/<version>[^<]+<\/version>/, `<version>${v}</version>`),
+  },
+  // ── Kotlin / Gradle ─────────────────────────────────────────────────────────
+  {
+    match:   /(?:^|\/)gradle\.properties$/,
+    find:    /^version\s*=\s*.+$/m,
+    replace: (content, v) => content.replace(/^(version\s*=\s*).+$/m, `$1${v}`),
+  },
+  // ── Helm ────────────────────────────────────────────────────────────────────
+  {
+    match:   /(?:^|\/)Chart\.yaml$/,
+    find:    /^version\s*:\s*\S+/m,
+    replace: (content, v) => content.replace(/^(version\s*:\s*)\S+/m, `$1${v}`),
+  },
+  // ── Elixir ──────────────────────────────────────────────────────────────────
+  {
+    match:   /(?:^|\/)mix\.exs$/,
+    find:    /@version\s*"[^"]+"/,
+    replace: (content, v) => content.replace(/(@version\s*")[^"]+(")/,  `$1${v}$2`),
+  },
+  // ── Plain text version file ─────────────────────────────────────────────────
+  {
+    match:   /(?:^|\/)(?:VERSION|version\.txt)$/,
+    find:    /\d+\.\d+\.\d+/,
+    replace: (content, v) => content.replace(/\d+\.\d+\.\d+.*/, v),
   },
 ];
 
@@ -42573,7 +42658,101 @@ class BadgeGenerator {
   }
 }
 
+;// CONCATENATED MODULE: ./src/major-tag.js
+
+
+class MajorTag {
+  constructor(octokit, repo) {
+    this.octokit = octokit;
+    this.repo    = repo;
+  }
+
+  /**
+   * Compute the floating major tag name from a semver tag.
+   * Major version is clamped to a minimum of 1 — v0.x.x releases
+   * update v1, matching the behaviour of the tag-major.yml workflow.
+   *
+   * Examples:
+   *   v0.5.1  → v1
+   *   v1.3.0  → v1
+   *   v2.0.0  → v2
+   *
+   * @param {string} tag  Full release tag, e.g. "v0.5.1"
+   * @returns {string|null}  Floating major tag (e.g. "v1") or null if unparseable
+   */
+  static majorTagFor(tag) {
+    const match = tag.match(/^v?(\d+)/);
+    if (!match) return null;
+    const major = Math.max(1, parseInt(match[1], 10));
+    return `v${major}`;
+  }
+
+  /**
+   * Resolve the commit SHA that a tag points to.
+   * Handles both lightweight and annotated tags.
+   *
+   * @param {string} tag  Tag name (without refs/tags/ prefix)
+   * @returns {Promise<string>}  Commit SHA
+   */
+  async resolveTagSha(tag) {
+    const { data } = await this.octokit.rest.git.getRef({
+      ...this.repo,
+      ref: `tags/${tag}`,
+    });
+
+    // Annotated tags point to a tag object — dereference to get the commit SHA
+    if (data.object.type === 'tag') {
+      const { data: tagObj } = await this.octokit.rest.git.getTag({
+        ...this.repo,
+        tag_sha: data.object.sha,
+      });
+      return tagObj.object.sha;
+    }
+
+    return data.object.sha;
+  }
+
+  /**
+   * Create or force-update the floating major tag to point to the given commit SHA.
+   *
+   * @param {string} tag  Full release tag (e.g. "v0.5.1")
+   * @param {string} sha  Commit SHA the major tag should point to
+   * @returns {Promise<string|null>}  The major tag name (e.g. "v1") or null on parse failure
+   */
+  async publish(tag, sha) {
+    const majorTag = MajorTag.majorTagFor(tag);
+    if (!majorTag) {
+      warning(`publish_major_tag: could not extract major version from tag "${tag}" — skipping`);
+      return null;
+    }
+
+    const ref = `tags/${majorTag}`;
+
+    try {
+      await this.octokit.rest.git.updateRef({
+        ...this.repo,
+        ref,
+        sha,
+        force: true,
+      });
+      info(`Floating tag ${majorTag} updated → ${tag} (${sha.slice(0, 7)})`);
+    } catch (err) {
+      if (err.status !== 422) throw err;
+      // 422 means the ref doesn't exist yet — create it
+      await this.octokit.rest.git.createRef({
+        ...this.repo,
+        ref: `refs/${ref}`,
+        sha,
+      });
+      info(`Floating tag ${majorTag} created → ${tag} (${sha.slice(0, 7)})`);
+    }
+
+    return majorTag;
+  }
+}
+
 ;// CONCATENATED MODULE: ./src/index.js
+
 
 
 
@@ -42640,7 +42819,31 @@ async function run() {
         .filter(Boolean),
       // Badge
       generateBadge: getBooleanInput('generate_badge'),
+      // Major tag
+      publishMajorTag: getBooleanInput('publish_major_tag'),
+      majorTagOnly:    getBooleanInput('major_tag_only'),
+      // Behaviour
+      skipIfNoCommits: getBooleanInput('skip_if_no_commits'),
+      dryRun:          getBooleanInput('dry_run'),
     };
+
+    // ── Route: major_tag_only ────────────────────────────────────────────────
+    // Used in a second job (protected by a GitHub Environment) that only needs
+    // to publish the floating major tag — skips the full release flow entirely.
+    if (inputs.majorTagOnly) {
+      if (!inputs.tag) {
+        setFailed('major_tag_only requires the `tag` input to be set (e.g. tag: v1.2.3)');
+        return;
+      }
+      info(`major_tag_only — publishing floating major tag for ${inputs.tag}`);
+      const mt        = new MajorTag(octokit, repo);
+      const commitSha = await mt.resolveTagSha(inputs.tag);
+      const majorTag  = await mt.publish(inputs.tag, commitSha);
+      if (majorTag) await writeMajorTagSummary({ tag: inputs.tag, majorTag });
+      setOutput('major_tag', majorTag ?? '');
+      setOutput('tag_name',  inputs.tag);
+      return;
+    }
 
     const prManager     = new PrManager(octokit, repo);
     const defaultBranch = await prManager.getDefaultBranch();
@@ -42685,6 +42888,12 @@ async function run() {
 
     info(`Changelog: ${totalCommits} commit(s), bump level: ${bumpLevel}`);
 
+    if (inputs.skipIfNoCommits && totalCommits === 0) {
+      info('No commits since last tag — skipping release (skip_if_no_commits: true).');
+      setOutput('skipped', 'true');
+      return;
+    }
+
     // ── 3. Gather contributors ───────────────────────────────────────────────
     let contributorsSection = '';
     let contributorCount    = 0;
@@ -42720,46 +42929,83 @@ async function run() {
     }
 
     // ── 6. Create or update the release ──────────────────────────────────────
-    const releaseManager   = new ReleaseManager(octokit, repo, inputs);
-    const { data: release } = await releaseManager.createOrUpdate({
-      tag,
-      name:            inputs.name || tag,
-      body:            releaseBody,
-      draft:           inputs.draft,
-      prerelease:      inputs.prerelease || Boolean(inputs.prereleaseChannel),
-      targetCommitish: inputs.targetCommitish,
-    });
+    let release;
+    if (inputs.dryRun) {
+      info(`[DRY RUN] Would create release ${tag}`);
+      release = {
+        id:         0,
+        html_url:   `https://github.com/${repo.owner}/${repo.repo}/releases/tag/${tag}`,
+        upload_url: '',
+        tag_name:   tag,
+        draft:      inputs.draft,
+        prerelease: inputs.prerelease || Boolean(inputs.prereleaseChannel),
+      };
+    } else {
+      const releaseManager   = new ReleaseManager(octokit, repo, inputs);
+      const { data }         = await releaseManager.createOrUpdate({
+        tag,
+        name:            inputs.name || tag,
+        body:            releaseBody,
+        draft:           inputs.draft,
+        prerelease:      inputs.prerelease || Boolean(inputs.prereleaseChannel),
+        targetCommitish: inputs.targetCommitish,
+      });
+      release = data;
+      info(`Release URL: ${release.html_url}`);
+    }
 
-    info(`Release URL: ${release.html_url}`);
+    // ── 6.5. Publish floating major tag (optional) ────────────────────────────
+    let majorTag = '';
+    if (inputs.publishMajorTag) {
+      if (inputs.dryRun) {
+        majorTag = MajorTag.majorTagFor(tag) ?? '';
+        info(`[DRY RUN] Would update floating tag ${majorTag} → ${tag}`);
+      } else {
+        const majorTagPublisher = new MajorTag(octokit, repo);
+        majorTag = (await majorTagPublisher.publish(tag, sha)) ?? '';
+      }
+    }
 
     // ── 7. Upload assets ──────────────────────────────────────────────────────
     let uploadedCount = 0;
 
     if (assetFiles.length > 0) {
-      uploadedCount = await assetManager.uploadAssets(
-        octokit,
-        release.upload_url,
-        assetFiles,
-        inputs.generateChecksums,
-        inputs.checksumFile,
-      );
-      info(`Uploaded ${uploadedCount} asset(s).`);
+      if (inputs.dryRun) {
+        info(`[DRY RUN] Would upload ${assetFiles.length} asset(s)`);
+      } else {
+        uploadedCount = await assetManager.uploadAssets(
+          octokit,
+          release.upload_url,
+          assetFiles,
+          inputs.generateChecksums,
+          inputs.checksumFile,
+        );
+        info(`Uploaded ${uploadedCount} asset(s).`);
+      }
     }
 
     // ── 8. Create GitHub Discussion (optional) ────────────────────────────────
     if (inputs.createDiscussion) {
-      await createReleaseDiscussion(octokit, repo, release, inputs.discussionCategory);
+      if (inputs.dryRun) {
+        info(`[DRY RUN] Would create Discussion in "${inputs.discussionCategory}"`);
+      } else {
+        await createReleaseDiscussion(octokit, repo, release, inputs.discussionCategory);
+      }
     }
 
     // ── 8.5. Comment release info on merged PRs ───────────────────────────────
     if (inputs.commentOnPRs && commits.length > 0) {
-      const commitShas = commits.map((c) => c.sha);
-      const mergedPRs  = await prManager.findMergedPRsForCommits(commitShas, [
-        RELEASE_BRANCH,
-        CHANGELOG_BRANCH,
-      ]);
-      if (mergedPRs.length > 0) {
-        await prManager.commentReleaseOnPRs(mergedPRs, tag, release.html_url);
+      if (inputs.dryRun) {
+        info(`[DRY RUN] Would comment on PRs for ${commits.length} commit(s)`);
+      } else {
+        const commitShas = commits.map((c) => c.sha);
+        const mergedPRs  = await prManager.findMergedPRsForCommits(commitShas, [
+          RELEASE_BRANCH,
+          CHANGELOG_BRANCH,
+        ]);
+        if (mergedPRs.length > 0) {
+          await prManager.commentReleaseOnPRs(mergedPRs, tag, release.html_url);
+        }
       }
     }
 
@@ -42772,8 +43018,10 @@ async function run() {
     setOutput('assets_uploaded', String(uploadedCount));
     setOutput('changelog',       changelogMd);
     setOutput('bump_level',      bumpLevel);
+    setOutput('skipped',         'false');
     setOutput('badge_url',       BadgeGenerator.badgeUrl(repo.owner, repo.repo, defaultBranch));
     setOutput('badge_markdown',  BadgeGenerator.badgeMarkdown(repo.owner, repo.repo, defaultBranch));
+    setOutput('major_tag',       majorTag);
 
     // ── 10. Write Job Summary ─────────────────────────────────────────────────
     await writeJobSummary({
@@ -42784,6 +43032,8 @@ async function run() {
       uploadedCount,
       contributorCount,
       previousTag,
+      majorTag: majorTag || undefined,
+      dryRun:   inputs.dryRun,
     });
 
     // ── 11. Open smart-changelog PR (auto_release: true only) ─────────────────
@@ -42825,6 +43075,17 @@ async function runChangelogPR({ octokit, repo, inputs, sha, prManager, defaultBr
   const { content: baseContent, sha: fileSha } = await changelogFile.read(defaultBranch);
   const entry      = changelogFile.buildEntry(tag, changelogMd);
   const newContent = changelogFile.prepend(baseContent, entry);
+
+  if (inputs.dryRun) {
+    info(`[DRY RUN] Would reset branch ${RELEASE_BRANCH} and commit CHANGELOG.md for ${tag}`);
+    if (inputs.bumpVersionInFiles.length > 0)
+      info(`[DRY RUN] Would bump version in: ${inputs.bumpVersionInFiles.join(', ')}`);
+    if (inputs.generateBadge)
+      info(`[DRY RUN] Would update badge file`);
+    info(`[DRY RUN] Would open/update Release PR: 🚀 Release ${tag}`);
+    setOutput('tag_name', tag);
+    return;
+  }
 
   // Reset smart-release branch to current main HEAD (keeps PR cleanly mergeable),
   // then commit the updated CHANGELOG.md and any version file bumps on top of it.
@@ -42880,23 +43141,25 @@ async function openChangelogPR({ octokit, repo, inputs, tag, version, changelogM
   const entry      = changelogFile.buildEntry(tag, changelogMd);
   const newContent = changelogFile.prepend(baseContent, entry);
 
-  await prManager.resetOrCreateBranch(CHANGELOG_BRANCH, sha);
-  await changelogFile.write(
-    CHANGELOG_BRANCH,
-    newContent,
-    fileSha,
-    `chore(changelog): update CHANGELOG.md for ${tag}`,
-  );
+  if (!inputs.dryRun) {
+    await prManager.resetOrCreateBranch(CHANGELOG_BRANCH, sha);
+    await changelogFile.write(
+      CHANGELOG_BRANCH,
+      newContent,
+      fileSha,
+      `chore(changelog): update CHANGELOG.md for ${tag}`,
+    );
 
-  if (inputs.bumpVersionInFiles.length > 0) {
-    const versionBumper = new VersionBumper(octokit, repo);
-    await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, CHANGELOG_BRANCH, tag);
-  }
+    if (inputs.bumpVersionInFiles.length > 0) {
+      const versionBumper = new VersionBumper(octokit, repo);
+      await versionBumper.bumpFiles(inputs.bumpVersionInFiles, version, CHANGELOG_BRANCH, tag);
+    }
 
-  if (inputs.generateBadge) {
-    const isPrerelease = inputs.prerelease || Boolean(inputs.prereleaseChannel);
-    const badge = new BadgeGenerator(octokit, repo);
-    await badge.generate(tag, isPrerelease, CHANGELOG_BRANCH);
+    if (inputs.generateBadge) {
+      const isPrerelease = inputs.prerelease || Boolean(inputs.prereleaseChannel);
+      const badge = new BadgeGenerator(octokit, repo);
+      await badge.generate(tag, isPrerelease, CHANGELOG_BRANCH);
+    }
   }
 
   // Accumulate all release entries so the PR description always shows every
@@ -42907,6 +43170,11 @@ async function openChangelogPR({ octokit, repo, inputs, tag, version, changelogM
   const prTitle = allEntries.length === 1
     ? `📋 Update CHANGELOG.md for ${tag}`
     : `📋 Update CHANGELOG.md (${allEntries.length} releases)`;
+
+  if (inputs.dryRun) {
+    info(`[DRY RUN] Would open/update Changelog PR: ${prTitle}`);
+    return;
+  }
 
   const pr = await prManager.openOrUpdatePR(
     CHANGELOG_BRANCH,
@@ -42935,7 +43203,7 @@ function buildReleasePRBody(tag, changelogMd) {
     changes,
     '',
     '---',
-    '_Auto-generated by [smart-gh-release](https://github.com/your-org/smart-gh-release)_',
+    '_Auto-generated by [smart-gh-release](https://github.com/Dev-Kitx/smart-gh-release)_',
   ].join('\n');
 }
 
@@ -42970,7 +43238,7 @@ function buildChangelogPRBody(entries) {
     sections.join('\n\n---\n\n'),
     '',
     '---',
-    '_Auto-generated by [smart-gh-release](https://github.com/your-org/smart-gh-release)_',
+    '_Auto-generated by [smart-gh-release](https://github.com/Dev-Kitx/smart-gh-release)_',
     // Store entries as a hidden comment so future updates can accumulate correctly
     `${PR_ENTRIES_MARKER}${JSON.stringify(entries)} -->`,
   ].join('\n');

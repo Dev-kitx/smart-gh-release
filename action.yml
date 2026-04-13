@@ -196,6 +196,59 @@ inputs:
     required: false
     default: 'false'
 
+  # ── Dry run ────────────────────────────────────────────────────────────────
+  dry_run:
+    description: >
+      Compute the next version and generate the changelog but do not create the
+      GitHub Release, open any PRs, upload assets, or publish the major tag.
+      All outputs are still set so you can inspect what would happen.
+      Useful for validating your workflow configuration before enabling it in
+      production.
+    required: false
+    default: 'false'
+
+  # ── Skip if no commits ──────────────────────────────────────────────────────
+  skip_if_no_commits:
+    description: >
+      Skip creating a release when there are no commits since the last tag.
+      Prevents empty or meaningless releases when a workflow is triggered by
+      a non-code change (e.g. a README update that slipped through paths-ignore).
+    required: false
+    default: 'false'
+
+  # ── Floating major tag ─────────────────────────────────────────────────────
+  publish_major_tag:
+    description: >
+      After publishing the release, create or force-update a floating major
+      version tag (e.g. v1) that always points to the latest release commit.
+      Follows the same clamping rule as the tag-major workflow: v0.x.x releases
+      update v1, v1.x.x updates v1, v2.x.x updates v2, etc.
+
+      Set to false (default) when you want to gate the major tag behind an
+      approval step — use major_tag_only: true in a separate job with an
+      environment protection rule instead.
+    required: false
+    default: 'false'
+
+  major_tag_only:
+    description: >
+      Skip the full release flow and only publish the floating major tag.
+      Requires the `tag` input to be set (e.g. from a prior job's tag_name output).
+
+      Designed for use in a second workflow job protected by a GitHub Environment
+      with required reviewers, so the major tag update can be approved separately:
+
+        publish-major-tag:
+          needs: release
+          environment: production
+          steps:
+            - uses: your-org/smart-gh-release@v1
+              with:
+                major_tag_only: true
+                tag: ${{ needs.release.outputs.tag_name }}
+    required: false
+    default: 'false'
+
   # ── GitHub Discussions ─────────────────────────────────────────────────────
   create_discussion:
     description: >
@@ -234,6 +287,14 @@ outputs:
     description: >
       Ready-to-paste Markdown for embedding the release badge in a README
       (set regardless of whether generate_badge is enabled).
+  skipped:
+    description: >
+      Set to "true" when the release was skipped (e.g. skip_if_no_commits: true
+      and no commits were found). "false" otherwise.
+  major_tag:
+    description: >
+      The floating major tag that was created or updated (e.g. v1).
+      Set when publish_major_tag: true. Empty string otherwise.
   pr_url:
     description: >
       HTML URL of the opened or updated pull request.

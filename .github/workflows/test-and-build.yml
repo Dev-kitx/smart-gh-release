@@ -1,4 +1,14 @@
-name: CI
+# Runs on every push to main and on pull requests targeting main.
+# Skips documentation-only and auto-generated file changes to avoid
+# unnecessary runs from smart-changelog PR merges or badge updates.
+#
+# Steps:
+#   1. Run the full test suite (vitest)
+#   2. Generate and upload coverage to Codecov
+#   3. Build dist/index.js and verify it was produced
+#   4. On main pushes, warn if dist/ is out of date with the source
+
+name: Test, Build & Coverage
 
 on:
   push:
@@ -6,8 +16,11 @@ on:
     paths-ignore:
       - 'README.md'
       - 'CHANGELOG.md'
+      - 'package.json'       # version bump from smart-changelog PR — safe to skip
       - 'codecov.yml'
       - 'dist/**'
+      - '.github/badges/**'
+
   pull_request:
     branches: [main]
     paths-ignore:
@@ -15,10 +28,12 @@ on:
       - 'CHANGELOG.md'
       - 'codecov.yml'
       - 'dist/**'
+      - '.github/badges/**'
+      # package.json intentionally absent — dependency changes in PRs must trigger CI
 
 jobs:
   test:
-    name: Test & Build
+    name: Test, Build & Coverage
     runs-on: ubuntu-latest
 
     steps:
@@ -49,7 +64,7 @@ jobs:
         uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: Dev-kitx/smart-gh-release    
+          slug: Dev-kitx/smart-gh-release
 
       - name: Build dist
         run: npm run build
@@ -62,7 +77,8 @@ jobs:
           fi
           echo "dist/index.js size: $(du -sh dist/index.js | cut -f1)"
 
-      # Ensure the dist is committed and up-to-date when on main
+      # Warn if dist/ is stale — the pre-push hook normally prevents this,
+      # but serves as a safety net for direct pushes or bypassed hooks.
       - name: Check dist is committed
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
