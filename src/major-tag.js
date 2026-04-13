@@ -52,7 +52,9 @@ export class MajorTag {
   }
 
   /**
-   * Create or force-update the floating major tag to point to the given commit SHA.
+   * Create or force-update the floating major tag as an annotated tag pointing
+   * to the given commit SHA. Using an annotated tag means GitHub shows the tag
+   * message (e.g. "Release v0.5.1") instead of the underlying commit message.
    *
    * @param {string} tag  Full release tag (e.g. "v0.5.1")
    * @param {string} sha  Commit SHA the major tag should point to
@@ -65,13 +67,23 @@ export class MajorTag {
       return null;
     }
 
+    // Create an annotated tag object — this is what GitHub displays as the tag
+    // message in the UI ("Release v0.5.1") instead of the underlying commit message.
+    const { data: tagObject } = await this.octokit.rest.git.createTag({
+      ...this.repo,
+      tag:     majorTag,
+      message: `Release ${tag}`,
+      object:  sha,
+      type:    'commit',
+    });
+
     const ref = `tags/${majorTag}`;
 
     try {
       await this.octokit.rest.git.updateRef({
         ...this.repo,
         ref,
-        sha,
+        sha:   tagObject.sha,
         force: true,
       });
       core.info(`Floating tag ${majorTag} updated → ${tag} (${sha.slice(0, 7)})`);
@@ -81,7 +93,7 @@ export class MajorTag {
       await this.octokit.rest.git.createRef({
         ...this.repo,
         ref: `refs/${ref}`,
-        sha,
+        sha: tagObject.sha,
       });
       core.info(`Floating tag ${majorTag} created → ${tag} (${sha.slice(0, 7)})`);
     }
