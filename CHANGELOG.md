@@ -14,6 +14,17 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.6.0] - 2026-04-13
+
+### ✨ Features
+
+- Implement floating tag and new params (#28) ([e9034d8](https://github.com/Dev-kitx/smart-gh-release/commit/e9034d861bc14d517bafdeb63cc5161bab1127cf)) by @aakashbasa
+
+### 📦 Build
+
+- fix build issues (#29) ([42c3a4a](https://github.com/Dev-kitx/smart-gh-release/commit/42c3a4a00c94c0f7b1e12557dbd7c1ea54412745)) by @aakashbasa
+
 ## [v0.5.1] - 2026-04-09
 
 _No notable changes._
