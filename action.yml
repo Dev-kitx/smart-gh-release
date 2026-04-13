@@ -233,19 +233,11 @@ inputs:
   major_tag_only:
     description: >
       Skip the full release flow and only publish the floating major tag.
-      Requires the `tag` input to be set (e.g. from a prior job's tag_name output).
-
-      Designed for use in a second workflow job protected by a GitHub Environment
-      with required reviewers, so the major tag update can be approved separately:
-
-        publish-major-tag:
-          needs: release
-          environment: production
-          steps:
-            - uses: your-org/smart-gh-release@v1
-              with:
-                major_tag_only: true
-                tag: ${{ needs.release.outputs.tag_name }}
+      Requires the `tag` input to be set explicitly (e.g. from a prior job's
+      tag_name output). Designed for use in a second workflow job protected by
+      a GitHub Environment with required reviewers so the major tag update can
+      be approved before it affects all consumers pinned to the floating tag.
+      See the Floating Major Tag section in the README for the full pattern.
     required: false
     default: 'false'
 
