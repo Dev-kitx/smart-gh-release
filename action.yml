@@ -1,8 +1,6 @@
 name: 'Smart GitHub Release'
 description: >
-  Feature-rich GitHub release action: auto semantic versioning, smart grouped changelog,
-  SHA-256 checksums, contributor credits, pre-release channels, required-asset validation,
-  GitHub Discussions, and rich Job Summaries — all in one action.
+  Auto semantic versioning, smart changelog, SHA-256 checksums, pre-release channels, and job summaries.
 author: 'akashbasa'
 
 branding:
