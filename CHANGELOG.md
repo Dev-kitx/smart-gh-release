@@ -16,6 +16,13 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.6.2] - 2026-04-13
+
+### 📚 Documentation
+
+- Update action.yml description for brevity (#33) ([4bb88af](https://github.com/Dev-kitx/smart-gh-release/commit/4bb88af19057dfb996d47b0cef2cf62fea6b967a)) by @aakashbasa
+
 ## [v0.6.1] - 2026-04-13
 
 ### 📌 Other Changes
