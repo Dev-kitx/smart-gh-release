@@ -1,0 +1,25 @@
+name: Rollback Major Tag
+
+# Manually move the floating major tag (e.g. v1) back to a previous release.
+# Useful when a release is broken and you need to point consumers pinned to @v1
+# at a known-good earlier tag without creating a new release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to roll back to (e.g. v1.2.3)'
+        required: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./
+        with:
+          major_tag_only: true
+          tag: ${{ inputs.tag }}   # v1 is moved to point to this tag

@@ -20,6 +20,9 @@ function makeOctokit({ getRefType = 'commit', updateRefStatus = null } = {}) {
         getTag: vi.fn(async () => ({
           data: { object: { sha: 'dereferenced-commit-sha' } },
         })),
+        createTag: vi.fn(async () => ({
+          data: { sha: 'annotated-tag-object-sha' },
+        })),
         updateRef: vi.fn(async () => {
           if (updateRefStatus) {
             const err = new Error('API error');
@@ -88,26 +91,42 @@ describe('MajorTag.resolveTagSha()', () => {
 // ── publish ───────────────────────────────────────────────────────────────────
 
 describe('MajorTag.publish()', () => {
-  it('updates existing ref and returns major tag', async () => {
+  it('creates an annotated tag object before updating the ref', async () => {
+    const octokit = makeOctokit();
+    const mt = new MajorTag(octokit, REPO);
+    await mt.publish('v1.3.0', 'abc123');
+    expect(octokit.rest.git.createTag).toHaveBeenCalledOnce();
+    expect(octokit.rest.git.createTag).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tag:     'v1',
+        message: 'Release v1.3.0',
+        object:  'abc123',
+        type:    'commit',
+      }),
+    );
+  });
+
+  it('updates existing ref to annotated tag SHA and returns major tag', async () => {
     const octokit = makeOctokit();
     const mt = new MajorTag(octokit, REPO);
     const result = await mt.publish('v1.3.0', 'abc123');
     expect(result).toBe('v1');
     expect(octokit.rest.git.updateRef).toHaveBeenCalledOnce();
     expect(octokit.rest.git.createRef).not.toHaveBeenCalled();
+    // ref must point to the annotated tag object SHA, not the commit SHA
     expect(octokit.rest.git.updateRef).toHaveBeenCalledWith(
-      expect.objectContaining({ ref: 'tags/v1', sha: 'abc123', force: true }),
+      expect.objectContaining({ ref: 'tags/v1', sha: 'annotated-tag-object-sha', force: true }),
     );
   });
 
-  it('creates ref when updateRef returns 422', async () => {
+  it('creates ref with annotated tag SHA when updateRef returns 422', async () => {
     const octokit = makeOctokit({ updateRefStatus: 422 });
     const mt = new MajorTag(octokit, REPO);
     const result = await mt.publish('v1.3.0', 'abc123');
     expect(result).toBe('v1');
     expect(octokit.rest.git.createRef).toHaveBeenCalledOnce();
     expect(octokit.rest.git.createRef).toHaveBeenCalledWith(
-      expect.objectContaining({ ref: 'refs/tags/v1', sha: 'abc123' }),
+      expect.objectContaining({ ref: 'refs/tags/v1', sha: 'annotated-tag-object-sha' }),
     );
   });
 

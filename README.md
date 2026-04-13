@@ -653,6 +653,34 @@ GitHub pauses the `publish-major-tag` job and shows an approval UI before runnin
 >[!TIP]
 > Configure the `production` environment in **Settings → Environments** and add the reviewers who should approve major tag promotions.
 
+### Rollback
+
+If a release is broken and you need to roll `v1` back to an earlier tag, run the dedicated rollback workflow manually. Create `.github/workflows/rollback-major-tag.yml`:
+
+```yaml
+name: Rollback Major Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to roll back to (e.g. v1.2.3)'
+        required: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: Dev-Kitx/smart-gh-release@v1
+        with:
+          major_tag_only: true
+          tag: ${{ inputs.tag }}   # v1 is moved to point to this tag
+```
+
+Go to **Actions → Rollback Major Tag → Run workflow**, enter the tag you want `v1` to point to, and run. The action resolves that tag's commit SHA, creates an annotated tag object (`Release <tag>`), and force-updates `v1` to it.
+
 ---
 
 ## Auto Release Mode
