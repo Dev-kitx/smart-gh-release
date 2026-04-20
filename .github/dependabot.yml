@@ -13,11 +13,9 @@ updates:
     labels:
       - dependencies
     groups:
-      actions-toolkit:
+      npm-dependencies:
         patterns:
-          - '@actions/*'
-      dev-dependencies:
-        dependency-type: development
+          - '*'
 
   # ── GitHub Actions ───────────────────────────────────────────────────────────
   - package-ecosystem: github-actions
