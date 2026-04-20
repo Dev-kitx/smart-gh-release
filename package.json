@@ -16,14 +16,14 @@
   },
   "dependencies": {
     "@actions/core": "^3.0.0",
-    "@actions/github": "^9.0.0",
+    "@actions/github": "^9.1.0",
     "@actions/glob": "^0.6.1",
     "semver": "^7.6.3"
   },
   "devDependencies": {
     "@vercel/ncc": "^0.38.2",
-    "@vitest/coverage-v8": "^4.1.2",
-    "eslint": "^10.2.0",
+    "@vitest/coverage-v8": "^4.1.4",
+    "eslint": "^10.2.1",
     "vitest": "^4.1.2"
   }
 }
