@@ -17,6 +17,18 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+
+## [v0.6.4] - 2026-04-20
+
+_No notable changes._
+
+## [v0.6.3] - 2026-04-20
+
+### 🔧 Maintenance
+
+- group all npm dependabot updates into a single PR (#38) ([787d168](https://github.com/Dev-kitx/smart-gh-release/commit/787d168e101d0ab0b29e44b372851f83b2fc206f)) by @aakashbasa
+
 ## [v0.6.2] - 2026-04-13
 
 ### 📚 Documentation
