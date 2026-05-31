@@ -19,6 +19,13 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.6.5] - 2026-05-31
+
+### 🔧 Maintenance
+
+- **deps**: combined dependency updates (#41, #42, #43, #46) (#47) ([49106bf](https://github.com/Dev-kitx/smart-gh-release/commit/49106bff0d93b2cf02cdf8e03ced5f5dd176ed7e)) by @aakashbasa
+
 ## [v0.6.4] - 2026-04-20
 
 _No notable changes._
