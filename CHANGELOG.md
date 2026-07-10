@@ -21,6 +21,13 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.6.7] - 2026-07-10
+
+### 🔧 Maintenance
+
+- **deps**: combine all dependabot updates (PRs #53, #54, #55) (#56) ([40831c6](https://github.com/Dev-kitx/smart-gh-release/commit/40831c650cf37cd0ed80aef555b2f2e19dfa8bb7)) by @aakashbasa
+
 ## [v0.6.6] - 2026-06-06
 
 _No notable changes._
