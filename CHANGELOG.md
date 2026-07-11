@@ -124,7 +124,7 @@ _No notable changes._
 
 ### 🐛 Bug Fixes
 
-- chanelog bug (#11) ([9597134](https://github.com/Dev-kitx/smart-gh-release/commit/95971348b76e8208fe83fe63902f18c159fe479a)) by @aakashbasa
+- changelog bug (#11) ([9597134](https://github.com/Dev-kitx/smart-gh-release/commit/95971348b76e8208fe83fe63902f18c159fe479a)) by @aakashbasa
 
 ## [v0.3.1] - 2026-03-30
 
