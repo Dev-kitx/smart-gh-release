@@ -24,6 +24,11 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.6.10] - 2026-08-08
+
+_No notable changes._
+
 ## [v0.6.9] - 2026-08-08
 
 ### 🔧 Maintenance
