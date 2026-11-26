@@ -26,6 +26,13 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+## [v0.6.12] - 2026-11-26
+
+### 🔧 Maintenance
+
+- **deps**: consolidate all Dependabot updates to latest versions (#81) ([f49ae74](https://github.com/Dev-kitx/smart-gh-release/commit/f49ae74f806e31b44114240d5eb37b255c9c81b2)) by @aakashbasa
+
 ## [v0.6.11] - 2026-09-07
 
 _No notable changes._
